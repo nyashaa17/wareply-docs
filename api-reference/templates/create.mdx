@@ -39,6 +39,10 @@ Placeholders in the body should use the double-bracket syntax: `{{variable_name}
 
 <ParamField body="category" type="string">
   Optional categorization: `marketing`, `utility`, or `authentication`.
+
+  <Note>
+    `category` is accepted by the API for compatibility. It is currently not persisted by the backend. Developers should not expect the category to be returned as stored template state.
+  </Note>
 </ParamField>
 
 ---

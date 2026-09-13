@@ -14,7 +14,7 @@ flowchart TD
     A["Developer API Request\nPOST /api/v1/messages/send"] --> B["Security & Quota Checks\n- Bearer Key & Scopes\n- E.164 Recipient Validation\n- Atomic Quota Reservation"]
     B --> C["Durable Persistence\nStatus: accepted"]
     C --> D["Worker Dispatch\nLoopback Worker Boundary"]
-    D --> E["Baileys Socket Transmission\nDelivery Pacing Applied"]
+    D --> E["WhatsApp Engine Transmission\nDelivery Pacing Applied"]
     E --> F["WhatsApp Network Ack\nExternal Message ID Received"]
     F --> G["Terminal Persistence\nStatus: sent"]
     E -.->|Engine Error| H["Fatal Error (502)\nQuota Automatically Refunded"]
