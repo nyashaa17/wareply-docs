@@ -91,6 +91,23 @@ Broadcast campaigns support immediate dispatch or scheduled future delivery, dyn
 
 ## Quota Reservation Mechanics
 
+<Tip>
+### Per-Campaign Limit vs. Monthly Quota
+
+These are two different limits:
+
+- **Per-Campaign Limit**: A single `POST /api/v1/broadcasts` request accepts a maximum of 1,000 unique recipients. Requests exceeding this limit are rejected with HTTP `400` and `validation_error`.
+- **Monthly Workspace Allowance**: Your plan determines the total number of outbound message targets available during the monthly usage period.
+  - Free: 500/month
+  - Standard: 5,000/month
+  - Pro: 25,000/month
+  - Enterprise: 100,000/month
+
+The monthly allowance is shared across Direct, Group, Channel, Broadcast, and Dashboard outbound messaging.
+
+A campaign cannot exceed 1,000 unique recipients even when the workspace has more than 1,000 unused monthly quota units.
+</Tip>
+
 Broadcast campaigns consume `broadcast_messages` quota with atomic reservation:
 
 - **Amount**: Exactly 1 unit per unique recipient target. A broadcast to 250 unique recipients reserves 250 quota units.

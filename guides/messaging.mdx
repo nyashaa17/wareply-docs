@@ -31,7 +31,11 @@ A key architectural aspect of the Wareply Developer API is the boundary between 
 - **No Handset Delivery or Read Receipts**: Wareply does not track or expose handset-level delivery receipts (double checkmarks) or read receipts (blue checkmarks) via Developer API endpoints or webhooks. Status `sent` is the terminal state visible in the API.
 
 <Note>
-**Receipt Philosophy**: Do not build applications that depend on handset receipt webhooks from the Developer API. Once a message reaches `status: sent` and receives an `external_message_id`, the API considers the dispatch transaction complete.
+### Transport and Delivery Semantics
+
+Wareply sends messages through connected WhatsApp multi-device sessions rather than the Meta WhatsApp Cloud API.
+
+When the API reports `status: sent` with an external message ID, this represents acknowledgement by the WhatsApp network. It does not confirm that the recipient's handset received or read the message. Handset delivery and read receipts are not exposed through the Developer API.
 </Note>
 
 ---
@@ -69,6 +73,26 @@ Submitting any of these parameters in request payloads triggers an immediate HTT
 ---
 
 ## Quota Reservation & Automatic Refunds
+
+### Shared Monthly Message Quota
+
+Wareply uses one shared monthly `broadcast_messages` allowance for outbound messaging across your workspace.
+
+The allowance is consumed by individual message targets, not by API requests or campaign objects.
+
+The following all consume the same monthly balance:
+
+- Direct 1:1 messages
+- Group messages
+- Channel messages
+- Broadcast campaign recipients
+- Dashboard/manual broadcast recipients
+
+For example, a Standard workspace with a 5,000-message monthly allowance that sends 200 direct messages and 300 group messages has used 500 quota units, leaving 4,500 units for the rest of the month.
+
+API and Dashboard messaging therefore do not have separate monthly broadcast-message pools.
+
+### Fail-Closed Reservation & Refunds
 
 The Developer API uses fail-closed atomic quota accounting:
 

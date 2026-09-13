@@ -19,6 +19,20 @@ Always use HTTPS. Plain HTTP requests are rejected.
 
 ## Architectural Principles
 
+<Note>
+### WhatsApp Transport Architecture
+
+Wareply does not use the Meta WhatsApp Cloud API for message dispatch.
+
+The Wareply Developer API operates through connected WhatsApp multi-device sessions managed by Wareply's session infrastructure.
+
+This means developers connect and authorize a WhatsApp account through Wareply, and outbound messages are dispatched through that connected session.
+
+Wareply's Developer API is therefore distinct from the Meta WhatsApp Cloud API and should not be treated as a Meta Cloud API integration.
+
+**Delivery status**: When a message reaches `status: sent` and has an external WhatsApp message ID, it has been acknowledged by the WhatsApp network. The Developer API does not expose handset-level delivery or read receipts.
+</Note>
+
 The Developer API is an interface to Wareply's existing WhatsApp infrastructure, not a parallel WhatsApp stack. Every request passes through a multi-tier security and execution pipeline:
 
 1. **Request Tracing**: Every inbound request is assigned or preserves a unique correlation ID via `X-Request-ID`.
