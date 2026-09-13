@@ -1,0 +1,183 @@
+---
+title: "Authentication"
+description: "Learn how to authenticate requests, manage API keys, and configure scopes"
+---
+
+All requests to the Wareply Developer API must authenticate using Bearer token authentication in the HTTP `Authorization` header.
+
+```http
+Authorization: Bearer wrp_live_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
+
+Requests without an `Authorization` header, with malformed headers, or with revoked keys return an HTTP 401 `unauthorized` error.
+
+<Note>
+**No Query String or Cookie Auth**: For security reasons, authentication tokens cannot be passed as URL query parameters or browser cookies. Bearer header authentication over HTTPS is strictly required.
+</Note>
+
+---
+
+## API Key Format and Cryptography
+
+Wareply Developer API keys adhere to a strict structural standard:
+
+```
+wrp_live_<64 lowercase hexadecimal characters>
+```
+
+- **Entropy**: Every key embeds 256 bits (32 bytes) of cryptographically secure random material generated via secure pseudorandom generators.
+- **Storage**: Keys are never stored in plaintext within the Wareply database. The server stores only a one-way cryptographic SHA-256 digest of the secret material alongside a short public prefix (`wrp_live_...`) for audit identification.
+- **One-Time Secret Exposure**: The plaintext token is revealed exactly once at key creation or key rotation. If a secret is lost or compromised, it cannot be recovered from the server. You must rotate the key and update your application credentials immediately.
+
+---
+
+## Workspace Resolution & Tenant Boundary
+
+In the Wareply architecture, tenancy and workspace isolation are derived strictly from the cryptographic signature of the API key:
+
+```mermaid
+flowchart LR
+    A["Inbound Request\nAuthorization: Bearer wrp_live_..."] --> B["SHA-256 Digest Verification"]
+    B --> C["Resolve Tenant Workspace\n(Authoritative Database)"]
+    C --> D["Verify Scope Permissions"]
+    D --> E["Enforce Account Tenancy\n& Key Restrictions"]
+    E --> F["WhatsApp Worker Execution"]
+```
+
+### Important Tenant Rules
+
+1. **Header Manipulation Prohibited**: The API key dictates the tenant workspace. The API strictly ignores or rejects any caller-supplied `X-Workspace-Id` header for tenant selection. Callers cannot switch tenants or access adjacent workspace data by modifying headers.
+2. **Account Boundary Enclosure**: Every operation referencing an `account_id` validates that the account belongs to the workspace resolved by the API key. If a caller references an account that does not exist or belongs to another workspace, the API returns:
+   ```json
+   {
+     "error": {
+       "code": "not_found",
+       "message": "Account 'acc_...' was not found in this workspace.",
+       "request_id": "req_01hy8z9q2w4e"
+     }
+   }
+   ```
+3. **Suspended Workspaces**: If a workspace is suspended, all API operations fail closed with HTTP 403 `forbidden`.
+
+---
+
+## Commercial Plan Entitlement
+
+Developer API access is a commercial feature:
+
+- **Included Plans**: Standard, Pro, and Enterprise workspaces have full access to the Developer API.
+- **Free Tier**: Workspaces on the Free plan do not include the `api_access` entitlement.
+
+If an API key is used against a workspace where Developer API access is disabled or where the subscription has lapsed, the API returns:
+
+```json
+{
+  "error": {
+    "code": "plan_upgrade_required",
+    "message": "Developer API access is not included in your current plan. Please upgrade to Standard, Pro, or Enterprise.",
+    "request_id": "req_01hy8z9q2w4e"
+  }
+}
+```
+
+---
+
+## API Scopes
+
+API keys support fine-grained scopes to enforce the principle of least privilege. When creating an API key, select only the scopes your integration needs.
+
+### Scope Reference
+
+| Scope | Description | Permitted Endpoints |
+| :--- | :--- | :--- |
+| `messages:send` | Send direct 1-to-1 messages | `POST /messages/send` |
+| `messages:read` | Read direct message status | `GET /messages/:id` |
+| `groups:read` | List groups, fetch group details, refresh group cache, read group messages | `GET /groups`, `GET /groups/:id`, `POST /groups/refresh`, `GET /groups/messages/:id` |
+| `groups:write` | Send messages to WhatsApp groups | `POST /groups/messages`, `POST /groups/:id/messages` |
+| `channels:read` | List channels, fetch channel metadata, refresh cache, read channel messages | `GET /channels`, `GET /channels/:id`, `POST /channels/refresh`, `GET /channels/messages/:id` |
+| `channels:write` | Send updates or announcements to WhatsApp channels | `POST /channels/messages`, `POST /channels/:id/messages` |
+| `templates:read` | View templates and listing | `GET /templates`, `GET /templates/:id` |
+| `templates:write` | Create, update, or delete message templates | `POST /templates`, `PUT /templates/:id`, `DELETE /templates/:id` |
+| `broadcasts:read` | List broadcasts, get broadcast details, list recipients, view schedules | `GET /broadcasts`, `GET /broadcasts/:id`, `GET /broadcasts/:id/recipients`, `GET /schedules`, `GET /schedules/:id` |
+| `broadcasts:write` | Create broadcasts, cancel active broadcasts, cancel schedules | `POST /broadcasts`, `POST /broadcasts/:id/cancel`, `DELETE /schedules/:id` |
+| `media:read` | Reserved internal media scope | Reserved capability |
+| `media:write` | Reserved internal media scope | Reserved capability |
+
+### Compound Scope Requirements
+
+Certain endpoints require compound permissions when operating on cross-cutting resources:
+
+- **Group Broadcasts**: Dispatching a broadcast with `"target_type": "group"` requires **both** `broadcasts:write` and `groups:write`.
+- **Channel Broadcasts**: Dispatching a broadcast with `"target_type": "channel"` requires **both** `broadcasts:write` and `channels:write`.
+- **Direct Broadcasts**: Dispatching a broadcast to phone numbers (`"target_type": "phone"` or `"individual"`) requires `broadcasts:write`.
+
+If an API key attempts an operation without the required scope, the API returns HTTP 403 `insufficient_scope`:
+
+```json
+{
+  "error": {
+    "code": "insufficient_scope",
+    "message": "Group broadcasts require both 'broadcasts:write' and 'groups:write' scopes.",
+    "request_id": "req_01hy8z9q2w4e",
+    "details": {
+      "required_scope": "groups:write",
+      "granted_scopes": ["broadcasts:write", "messages:send"]
+    }
+  }
+}
+```
+
+---
+
+## Account Restrictions
+
+When generating an API key, administrators can optionally restrict the key to a specific whitelist of WhatsApp account IDs (`accountRestrictions`).
+
+- **Unrestricted Keys** (`accountRestrictions: null`): The key can dispatch messages from any active WhatsApp account belonging to the workspace.
+- **Restricted Keys** (`accountRestrictions: ["acc_001"]`): The key is strictly locked to the designated account IDs.
+
+If a restricted API key attempts to operate on an account not in its whitelist, the request is rejected with HTTP 403:
+
+```json
+{
+  "error": {
+    "code": "account_access_denied",
+    "message": "This API key is not permitted to access account 'acc_002'.",
+    "request_id": "req_01hy8z9q2w4e",
+    "details": {
+      "target_account": "acc_002",
+      "allowed_accounts": ["acc_001"]
+    }
+  }
+}
+```
+
+---
+
+## API Key Management & Lifecycle
+
+Developer API keys are managed exclusively from the **Wareply Dashboard**:
+
+1. Log in to [Wareply Dashboard](https://wareply.indexai.co.zw).
+2. Go to **Settings** (`/settings`) → **Developer API Keys**.
+3. Create, inspect, rotate, or revoke keys at any time.
+
+### Key Lifecycle States
+
+- **Active**: The key is valid and currently authenticating requests.
+- **Expired**: If an expiration timestamp was configured at key creation, requests after that time return 401 `unauthorized`.
+- **Revoked**: Revocation is immediate. Once revoked in the dashboard, any subsequent request bearing that key is rejected immediately.
+- **Rotated**: Rotating a key issues a new secret while immediately invalidating the prior secret.
+
+<Warning>
+**Separate Administrative Control Endpoints**: Internal key management endpoints (`/api/v1/control/api-keys`) require Supabase JWT session authentication with Owner or Admin workspace role. They are not accessible using Developer API keys.
+</Warning>
+
+---
+
+## Security Best Practices
+
+1. **Store Secrets Securely**: Never hardcode API keys in client-side code, mobile applications, or public source repositories. Always inject keys via environment variables (for example, `WAREPLY_API_KEY`) or dedicated secret management services (such as AWS Secrets Manager, HashiCorp Vault, or Google Cloud Secret Manager).
+2. **Apply Least Privilege**: Limit scopes to the exact operations required. If your service only sends direct alerts, grant only `messages:send`.
+3. **Restrict Accounts**: If a service handles a specific department or phone line, restrict its API key to that specific account UUID.
+4. **Rotate Routinely**: Rotate API keys periodically and immediately if exposure is suspected.

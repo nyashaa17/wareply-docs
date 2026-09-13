@@ -1,0 +1,110 @@
+---
+title: "Errors & Status Codes"
+description: "Standardized error envelopes, error codes, HTTP status mapping, and troubleshooting"
+---
+
+The Wareply Developer API uses standard HTTP status codes and a consistent JSON error envelope for all client and server errors.
+
+Every error response contains a structured `error` object with a machine-readable `code`, a human-readable `message`, and a correlation `request_id` for auditing and support.
+
+## Error Response Envelope
+
+```json
+{
+  "error": {
+    "code": "invalid_recipient",
+    "message": "Recipient phone number 'to' is required.",
+    "request_id": "req_01hy8z9q2w4e1234",
+    "details": null
+  }
+}
+```
+
+### Error Object Attributes
+
+| Attribute | Type | Description |
+| :--- | :--- | :--- |
+| `code` | `string` | Machine-readable error identifier (e.g., `insufficient_scope`, `not_found`). |
+| `message` | `string` | Human-readable explanation of the error, safely scrubbed of internal system details. |
+| `request_id` | `string` | Unique trace identifier matching the `X-Request-ID` response header. |
+| `details` | `object \| null` | Optional contextual payload providing parameter-specific details or validation issues. |
+
+---
+
+## HTTP Status Codes
+
+The API maps operations to standard HTTP status codes:
+
+| Status Code | Name | Description |
+| :--- | :--- | :--- |
+| `200` | OK | The request succeeded. |
+| `201` | Created | The resource was created successfully (e.g., template or broadcast). |
+| `400` | Bad Request | The request payload is malformed, missing required fields, or violates validation rules. |
+| `401` | Unauthorized | The API key is missing, invalid, expired, or revoked. |
+| `403` | Forbidden | Insufficient scope, commercial plan upgrade required, or account access denied. |
+| `404` | Not Found | The requested resource (account, message, group, channel, template, or schedule) was not found in this workspace. |
+| `409` | Conflict | Resource conflict (e.g., cancelling an already-completed campaign) or concurrent idempotency execution. |
+| `422` | Unprocessable Entity | Idempotency key payload mismatch (same key sent with different payload). |
+| `429` | Too Many Requests | Rate limit exceeded (60 requests per minute). Check `Retry-After`. |
+| `500` | Internal Server Error | An unhandled exception occurred within the API layer. |
+| `502` | Bad Gateway | The WhatsApp worker or messaging engine encountered an upstream delivery failure. |
+| `504` | Gateway Timeout | Ambiguous dispatch timeout (`dispatch_uncertain`). The transmission state could not be conclusively determined. |
+
+---
+
+## Complete Error Code Catalog
+
+| Error Code | HTTP Status | Description & Recommended Resolution |
+| :--- | :--- | :--- |
+| `invalid_request` | `400` | General request validation failure, invalid syntax, or prohibited anti-abuse flags (e.g. `parallel`, `bypass_rate_limit`). Check the request payload against documentation. |
+| `validation_error` | `400` | Field-specific validation failure (e.g. template body exceeds 4096 characters, empty template name). Inspect `details` for field-level errors. |
+| `invalid_recipient` | `400` | Recipient phone number, group JID, or channel JID is invalid, contains non-digit characters, or has invalid length. Format phone numbers in international E.164. |
+| `unauthorized` | `401` | Missing or malformed `Authorization: Bearer wrp_live_...` header, or key is revoked/expired. Verify credentials in Wareply Dashboard Settings. |
+| `forbidden` | `403` | General authorization failure or workspace is suspended. Contact administrator or support. |
+| `plan_upgrade_required` | `403` | Developer API access (`api_access`) or Channel messaging is not included in your subscription plan. Upgrade to Standard, Pro, or Enterprise in the Dashboard. |
+| `insufficient_scope` | `403` | The API key lacks the scope required for this endpoint or compound operation. Review granted scopes in `details` and update key in the Dashboard. |
+| `account_access_denied` | `403` | The API key has an account restriction whitelist that does not include the target `account_id`. |
+| `quota_exceeded` | `403` | The monthly broadcast messaging quota for the workspace has been exhausted. Check your plan's usage in the Dashboard. |
+| `not_found` | `404` | The target resource does not exist or does not belong to the authenticated workspace. |
+| `account_unavailable` | `404` | The specified WhatsApp account is not running or connected. Check account status in the Dashboard. |
+| `conflict` | `409` | State conflict. For example, attempting to cancel a broadcast that has already completed, failed, or been cancelled. |
+| `idempotency_conflict` | `409` | A mutating request with this `Idempotency-Key` is currently in progress. Retry shortly. |
+| `idempotency_key_mismatch` | `422` | An `Idempotency-Key` was previously used with a different HTTP method, path, or request body. Generate a unique key for each unique operation. |
+| `rate_limited` | `429` | The key has exceeded 60 requests per minute. Back off and inspect the `Retry-After` header. |
+| `internal_error` | `500` | An unexpected server error occurred. Quote the `request_id` when contacting support. |
+| `message_failed` | `502` | WhatsApp worker encountered a definitive transmission failure. Operational message quota is automatically refunded. |
+| `dispatch_uncertain` | `504` | Ambiguous network timeout during dispatch. The message may or may not have reached the network. Do not immediately retry without checking status or using idempotency. |
+
+---
+
+## Information Leak Prevention Guarantee
+
+To protect your system security, the Wareply Developer API applies automatic scrubbing to all error responses:
+
+- Database connection strings, SQL statements, and ORM stack traces are never exposed.
+- Internal filesystem paths (e.g. `/home/...`, `/var/...`) and socket connection details are scrubbed.
+- Bearer tokens, private keys, and external JWT signatures are completely redacted.
+- Underlying WhatsApp protocol library logs (Baileys error details) are sanitized into clean developer messages.
+
+If an unexpected error occurs, the API logs the full trace internally under your `X-Request-ID` and returns:
+
+```json
+{
+  "error": {
+    "code": "internal_error",
+    "message": "An unexpected error occurred. Please try again.",
+    "request_id": "req_01hy8z9q2w4e1234"
+  }
+}
+```
+
+---
+
+## Request Tracing with `X-Request-ID`
+
+Every request passing through the Developer API is associated with an `X-Request-ID`:
+
+- **Client Correlation**: You can supply your own trace ID in the request header `X-Request-ID`. If supplied, Wareply preserves and echoes this ID in the response.
+- **Server Generation**: If omitted, Wareply generates a secure correlation ID automatically (e.g. `req_01hy8z9q2w4e1234`).
+
+Always log the `request_id` returned in the response header or error envelope. If you need assistance with an operational issue, include this ID in your support inquiry.

@@ -1,0 +1,124 @@
+---
+title: "Rate Limits"
+description: "Understand rate limits, sliding window enforcement, and retry strategies"
+---
+
+The Wareply Developer API enforces rate limits to ensure platform availability, maintain stability across multi-tenant workloads, and protect connected WhatsApp numbers from messaging pace violations.
+
+## Default Limits
+
+Rate limiting is tracked per authenticated API key across a sliding 60-second window:
+
+| Parameter | Value |
+| :--- | :--- |
+| **Request Limit** | 60 requests |
+| **Window Duration** | 60 seconds |
+| **Tracking Dimension** | Per API Key (`apiKey.id`) |
+| **Algorithm** | Sliding Token-Bucket Window |
+
+---
+
+## Response Headers
+
+Every Developer API response includes RFC-standard rate limiting headers indicating current quota consumption and reset timings:
+
+| Header | Description | Example |
+| :--- | :--- | :--- |
+| `X-RateLimit-Limit` | The maximum number of requests allowed in the 60-second window | `60` |
+| `X-RateLimit-Remaining` | The number of remaining requests available in the current window | `58` |
+| `X-RateLimit-Reset` | Unix epoch timestamp (in seconds) when the sliding window fully replenishes | `1789291260` |
+
+### Example Header Block
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+X-Request-ID: req_01hy8z9q2w4e1234
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 58
+X-RateLimit-Reset: 1789291260
+```
+
+---
+
+## HTTP 429 Rate Limit Exceeded
+
+When an API key exceeds 60 requests within the sliding 60-second window, the API rejects subsequent requests with HTTP 429 `rate_limited`.
+
+### Rate Limit Response Headers
+
+When rate limited, the server includes a standard `Retry-After` header specifying the exact duration to wait:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json; charset=utf-8
+Retry-After: 14
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1789291274
+X-Request-ID: req_01hy8z9q2w4e1234
+```
+
+### Rate Limit Error Body
+
+```json
+{
+  "error": {
+    "code": "rate_limited",
+    "message": "API rate limit exceeded. Please slow down.",
+    "request_id": "req_01hy8z9q2w4e1234",
+    "details": {
+      "limit": 60,
+      "window_seconds": 60,
+      "retry_after_seconds": 14
+    }
+  }
+}
+```
+
+---
+
+## Client Implementation Best Practices
+
+To build resilient integrations that handle rate limits smoothly, follow these engineering guidelines:
+
+### 1. Honor the `Retry-After` Header
+
+If your client receives an HTTP 429 response, parse the `Retry-After` header and wait at least that number of seconds before attempting another request.
+
+```javascript
+async function requestWithRetry(url, options, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const res = await fetch(url, options);
+
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get("Retry-After") || "5", 10);
+      const delayMs = (retryAfter * 1000) + Math.random() * 500; // Include jitter
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      continue;
+    }
+
+    return res;
+  }
+  throw new Error("Exceeded maximum retries due to rate limiting");
+}
+```
+
+### 2. Implement Exponential Backoff with Jitter
+
+For transient network issues or unexpected 5xx errors, implement exponential backoff with randomized jitter to avoid thundering herd conditions:
+
+$$t_{\text{wait}} = \min(t_{\text{max}}, t_{\text{base}} \times 2^{\text{attempt}}) \pm \text{jitter}$$
+
+### 3. Avoid Aggressive Polling
+
+- Cache group listings (`GET /groups`) and channel rosters (`GET /channels`) locally. Group and channel metadata does not change frequently.
+- Use the status retrieval endpoints (`GET /messages/:id`) with measured polling intervals rather than high-frequency loops.
+
+### 4. Do Not Retry Client Validation Errors
+
+Requests that return 4xx errors (such as `400 invalid_recipient`, `400 validation_error`, or `403 insufficient_scope`) represent client logic errors and should not be retried automatically without correcting the request payload.
+
+### 5. Multi-Recipient Messaging
+
+If you need to send messages to dozens or hundreds of recipients, do not loop over `POST /api/v1/messages/send` synchronously. Use the **Broadcasts API** (`POST /api/v1/broadcasts`), which accepts up to 1,000 recipients in a single call and handles queued dispatch and delivery pacing server-side.

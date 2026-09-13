@@ -1,0 +1,137 @@
+---
+title: "Refresh Channels Cache"
+description: "Trigger a live synchronization of WhatsApp channels and newsletters from WhatsApp"
+---
+
+The `POST /api/v1/channels/refresh` endpoint triggers an explicit synchronization between the WhatsApp worker and WhatsApp's servers to update the local cached snapshot of channels.
+
+### Authentication & Permissions
+
+- **Method**: `POST`
+- **Path**: `/api/v1/channels/refresh`
+- **Required Scope**: `channels:read`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `Content-Type: application/json` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Request Parameters
+
+<ParamField body="account_id" type="string" required>
+  The UUID of the WhatsApp account whose channels should be synchronized (e.g. `acc_01hy8z9q2w4e1234`). Can alternatively be passed as a query parameter (`?account_id=...`).
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://wareply.indexai.co.zw/api/v1/channels/refresh" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_id": "acc_01hy8z9q2w4e1234"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch("https://wareply.indexai.co.zw/api/v1/channels/refresh", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    account_id: "acc_01hy8z9q2w4e1234"
+  })
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://wareply.indexai.co.zw/api/v1/channels/refresh",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    },
+    json={"account_id": "acc_01hy8z9q2w4e1234"}
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  Synchronization result.
+
+  <Expandable title="data properties">
+    <ResponseField name="refreshed" type="boolean" required>
+      Indicates whether the live refresh succeeded.
+    </ResponseField>
+    <ResponseField name="count" type="integer" required>
+      Total number of channels updated.
+    </ResponseField>
+    <ResponseField name="channels" type="array of objects" required>
+      Updated list of channel items.
+      
+      <Expandable title="channel properties">
+        <ResponseField name="id" type="string" required>
+          The WhatsApp channel JID (`...@newsletter`).
+        </ResponseField>
+        <ResponseField name="name" type="string" required>
+          Channel name.
+        </ResponseField>
+        <ResponseField name="role" type="string" required>
+          Account role in the channel (`owner`, `admin`, or `subscriber`).
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "refreshed": true,
+    "count": 1,
+    "channels": [
+      {
+        "id": "120363049876543210@newsletter",
+        "name": "Acme Logistics Announcements",
+        "role": "owner",
+        "subscriberCount": 1540
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | `account_id` parameter is missing. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `channels:read`. |
+| `404` | `not_found` | Account not found in this workspace. |
+| `404` | `account_unavailable` | Account is disconnected or initializing. |

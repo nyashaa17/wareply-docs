@@ -1,0 +1,179 @@
+---
+title: "List Broadcast Recipients"
+description: "Inspect the delivery outcome and WhatsApp message ID for each recipient in a campaign"
+---
+
+The `GET /api/v1/broadcasts/:id/recipients` endpoint returns a paginated breakdown of individual recipient delivery records for a broadcast campaign.
+
+Use this endpoint to audit campaign delivery, check which numbers succeeded or failed, and retrieve individual WhatsApp message IDs.
+
+### Authentication & Permissions
+
+- **Method**: `GET`
+- **Path**: `/api/v1/broadcasts/:id/recipients`
+- **Required Scope**: `broadcasts:read`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique broadcast campaign ID (e.g. `bc_01hy8z9q2w4e1234`).
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="limit" type="integer" default="100">
+  Number of recipient records to return per page (between 1 and 500).
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Number of records to skip for pagination.
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://wareply.indexai.co.zw/api/v1/broadcasts/bc_01hy8z9q2w4e1234/recipients?limit=50" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+```javascript Node.js
+const broadcastId = "bc_01hy8z9q2w4e1234";
+
+const response = await fetch(`https://wareply.indexai.co.zw/api/v1/broadcasts/${broadcastId}/recipients?limit=50`, {
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Accept": "application/json"
+  }
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+broadcast_id = "bc_01hy8z9q2w4e1234"
+
+response = requests.get(
+    f"https://wareply.indexai.co.zw/api/v1/broadcasts/{broadcast_id}/recipients",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Accept": "application/json"
+    },
+    params={"limit": 50}
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  Recipient listing envelope.
+
+  <Expandable title="data properties">
+    <ResponseField name="recipients" type="array of objects" required>
+      Array of recipient target records.
+      
+      <Expandable title="recipient properties">
+        <ResponseField name="id" type="string" required>
+          Unique recipient record ID (`bcr_...`).
+        </ResponseField>
+        <ResponseField name="broadcast_id" type="string" required>
+          Parent broadcast campaign ID.
+        </ResponseField>
+        <ResponseField name="recipient_jid" type="string" required>
+          Recipient destination JID (`...@s.whatsapp.net`, `...@g.us`, or `...@newsletter`).
+        </ResponseField>
+        <ResponseField name="status" type="string" required>
+          Individual recipient delivery status: `queued`, `sent`, `failed`, or `skipped`.
+        </ResponseField>
+        <ResponseField name="message_id" type="string | null" required>
+          Confirmed WhatsApp message ID returned by WhatsApp upon successful transmission.
+        </ResponseField>
+        <ResponseField name="error" type="string | null" required>
+          Error explanation if transmission to this recipient failed.
+        </ResponseField>
+        <ResponseField name="sent_at" type="string | null" required>
+          ISO 8601 network confirmation timestamp.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="pagination" type="object" required>
+      Pagination metadata.
+
+      <Expandable title="pagination properties">
+        <ResponseField name="limit" type="integer" required>
+          Applied limit.
+        </ResponseField>
+        <ResponseField name="offset" type="integer" required>
+          Applied offset.
+        </ResponseField>
+        <ResponseField name="total" type="integer" required>
+          Total recipient count for this campaign.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "recipients": [
+      {
+        "id": "bcr_01hy8z9q2w4e001",
+        "broadcast_id": "bc_01hy8z9q2w4e1234",
+        "recipient_jid": "263782092900@s.whatsapp.net",
+        "status": "sent",
+        "message_id": "3EB0ABCDEF1234567890",
+        "sent_at": "2026-09-13T03:50:02.000Z"
+      },
+      {
+        "id": "bcr_01hy8z9q2w4e002",
+        "broadcast_id": "bc_01hy8z9q2w4e1234",
+        "recipient_jid": "263771234567@s.whatsapp.net",
+        "status": "sent",
+        "message_id": "3EB0ABCDEF1234567891",
+        "sent_at": "2026-09-13T03:50:03.500Z"
+      }
+    ],
+    "pagination": {
+      "limit": 50,
+      "offset": 0,
+      "total": 2
+    }
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | Broadcast ID parameter is missing. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `broadcasts:read`. |
+| `404` | `not_found` | Broadcast not found in this workspace. |

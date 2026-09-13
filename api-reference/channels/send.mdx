@@ -1,0 +1,206 @@
+---
+title: "Send Channel Message"
+description: "Publish an update or announcement to a WhatsApp channel or newsletter"
+---
+
+The Developer API supports two equivalent routes for publishing updates to a WhatsApp Channel:
+
+- `POST /api/v1/channels/messages` (with `channel_id` in the request body)
+- `POST /api/v1/channels/:id/messages` (with the channel JID in the URL path)
+
+The connected WhatsApp account must possess publisher privileges (`owner` or `admin`) on the channel. Subscribers cannot publish updates.
+
+### Authentication & Permissions
+
+- **Methods**: `POST`
+- **Paths**:
+  - `/api/v1/channels/messages`
+  - `/api/v1/channels/:id/messages`
+- **Required Scope**: `channels:write`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `Content-Type: application/json` (required)
+  - `Idempotency-Key: <string>` (optional, recommended)
+  - `X-Request-ID: <string>` (optional)
+
+---
+
+## Request Parameters
+
+<ParamField path="id" type="string">
+  Applicable when using `POST /api/v1/channels/:id/messages`. The WhatsApp channel JID (`...@newsletter`).
+</ParamField>
+
+<ParamField body="account_id" type="string" required>
+  The UUID of the WhatsApp account publishing the update. Must be an owner or admin of the channel.
+</ParamField>
+
+<ParamField body="channel_id" type="string">
+  The WhatsApp channel JID (`...@newsletter`). Required when calling `POST /api/v1/channels/messages`.
+  
+  - Must end in `@newsletter`.
+  - `channelId` and `to` are accepted as aliases.
+</ParamField>
+
+<ParamField body="type" type="string" default="text">
+  Payload type: `text` or `media`.
+</ParamField>
+
+<ParamField body="text" type="string">
+  Message content. Maximum 4,096 characters. Required if `asset_id` is omitted. `message` is accepted as an alias.
+</ParamField>
+
+<ParamField body="asset_id" type="string">
+  Media asset identifier uploaded in the Wareply Dashboard. Required if `text` is omitted. `assetId` is accepted as an alias.
+</ParamField>
+
+<ParamField body="caption" type="string">
+  Optional caption accompanying a media attachment. Maximum 1,024 characters.
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash POST /channels/messages
+curl -X POST "https://wareply.indexai.co.zw/api/v1/channels/messages" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: ch-update-v24-announcement" \
+  -d '{
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "channel_id": "120363049876543210@newsletter",
+    "text": "Weekly Product Announcement: v2.4 has been released with upgraded analytics!"
+  }'
+```
+
+```bash POST /channels/:id/messages
+curl -X POST "https://wareply.indexai.co.zw/api/v1/channels/120363049876543210@newsletter/messages" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: ch-update-v24-media" \
+  -d '{
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "text": "Check out our new feature showcase video below.",
+    "asset_id": "ast_01h8a9b2c3d4e5f6"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch("https://wareply.indexai.co.zw/api/v1/channels/messages", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json",
+    "Idempotency-Key": "ch-update-101"
+  },
+  body: JSON.stringify({
+    account_id: "acc_01hy8z9q2w4e1234",
+    channel_id: "120363049876543210@newsletter",
+    text: "Service maintenance scheduled for Sunday at 02:00 UTC."
+  })
+});
+
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+payload = {
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "channel_id": "120363049876543210@newsletter",
+    "text": "Service maintenance scheduled for Sunday at 02:00 UTC."
+}
+
+response = requests.post(
+    "https://wareply.indexai.co.zw/api/v1/channels/messages",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "ch-update-101"
+    },
+    json=payload
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  The channel message dispatch record.
+
+  <Expandable title="data properties">
+    <ResponseField name="id" type="string" required>
+      Stable channel message operation ID (e.g. `msg_ch_01hy8z9q2w4e1234`).
+    </ResponseField>
+    <ResponseField name="account_id" type="string" required>
+      UUID of the WhatsApp account that published the update.
+    </ResponseField>
+    <ResponseField name="channel_id" type="string" required>
+      Destination WhatsApp channel JID (`...@newsletter`).
+    </ResponseField>
+    <ResponseField name="type" type="string" required>
+      Payload type (`text` or `media`).
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      Terminal state: `sent`.
+    </ResponseField>
+    <ResponseField name="external_message_id" type="string | null" required>
+      Confirmed WhatsApp message ID returned by WhatsApp servers.
+    </ResponseField>
+    <ResponseField name="created_at" type="string" required>
+      ISO 8601 creation timestamp.
+    </ResponseField>
+    <ResponseField name="sent_at" type="string | null" required>
+      ISO 8601 network confirmation timestamp.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "id": "msg_ch_01hy8z9q2w4e1234",
+    "account_id": "acc_01hy8z9q2w4e",
+    "accountId": "acc_01hy8z9q2w4e",
+    "channel_id": "120363049876543210@newsletter",
+    "channelId": "120363049876543210@newsletter",
+    "channel_jid": "120363049876543210@newsletter",
+    "channelJid": "120363049876543210@newsletter",
+    "type": "text",
+    "status": "sent",
+    "external_message_id": "3EB0ABCDEF1234567890",
+    "externalMessageId": "3EB0ABCDEF1234567890",
+    "created_at": "2026-09-13T03:50:00.000Z",
+    "createdAt": "2026-09-13T03:50:00.000Z",
+    "sent_at": "2026-09-13T03:50:01.250Z",
+    "sentAt": "2026-09-13T03:50:01.250Z"
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_recipient` | Channel JID does not end in `@newsletter` or has invalid syntax. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `channels:write`. |
+| `403` | `forbidden` | The account is not an owner or admin of the channel, or plan lacks channel entitlements. |
+| `404` | `not_found` | Channel or account not found in this workspace. |
+| `502` | `message_failed` | Upstream WhatsApp delivery failed. Quota refunded automatically. |

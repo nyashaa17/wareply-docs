@@ -1,0 +1,169 @@
+---
+title: "Get Identity & Tenancy"
+description: "Verify your API key, workspace tenancy, granted scopes, and commercial plan status"
+---
+
+The `GET /api/v1/me` endpoint allows developers to verify their credentials and inspect the authenticated workspace, granted scopes, account restrictions, and subscription tier.
+
+This endpoint is safe to call during system health checks or startup sequences. It never exposes raw secrets, internal database topologies, or sensitive credentials.
+
+### Authentication & Permissions
+
+- **Method**: `GET`
+- **Path**: `/api/v1/me`
+- **Required Scope**: Any valid API key
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://wareply.indexai.co.zw/api/v1/me" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+```javascript Node.js
+const response = await fetch("https://wareply.indexai.co.zw/api/v1/me", {
+  method: "GET",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Accept": "application/json"
+  }
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "https://wareply.indexai.co.zw/api/v1/me",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Accept": "application/json"
+    }
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  The top-level response envelope containing identity metadata.
+
+  <Expandable title="data properties">
+    <ResponseField name="apiKey" type="object" required>
+      Details of the authenticated API key.
+      
+      <Expandable title="apiKey properties">
+        <ResponseField name="id" type="string" required>
+          The unique API key identifier.
+        </ResponseField>
+        <ResponseField name="name" type="string" required>
+          The friendly name assigned to the key during creation.
+        </ResponseField>
+        <ResponseField name="keyPrefix" type="string" required>
+          The non-sensitive prefix of the key used for identification (e.g. `wrp_live_abcd`).
+        </ResponseField>
+        <ResponseField name="scopes" type="array of strings" required>
+          List of authorization scopes granted to this key.
+        </ResponseField>
+        <ResponseField name="accountRestrictions" type="array of strings | null" required>
+          Whitelist of account UUIDs this key is permitted to access, or `null` if unrestricted.
+        </ResponseField>
+        <ResponseField name="createdAt" type="string" required>
+          ISO 8601 timestamp when the key was created.
+        </ResponseField>
+        <ResponseField name="expiresAt" type="string | null" required>
+          ISO 8601 expiration timestamp, or `null` if the key does not expire.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="workspace" type="object" required>
+      The tenant workspace bound to this API key.
+
+      <Expandable title="workspace properties">
+        <ResponseField name="id" type="string" required>
+          Unique workspace identifier.
+        </ResponseField>
+        <ResponseField name="name" type="string" required>
+          Display name of the workspace.
+        </ResponseField>
+        <ResponseField name="slug" type="string" required>
+          URL-safe workspace identifier.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="plan" type="object" required>
+      Subscription plan metadata.
+
+      <Expandable title="plan properties">
+        <ResponseField name="id" type="string" required>
+          Plan identifier (e.g. `standard`, `pro`, `enterprise`).
+        </ResponseField>
+        <ResponseField name="name" type="string" required>
+          Display name of the subscription tier.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "apiKey": {
+      "id": "key_01h8a9b2c3d4e5f6",
+      "name": "Production Backend",
+      "keyPrefix": "wrp_live_abcd",
+      "scopes": [
+        "messages:send",
+        "messages:read",
+        "broadcasts:read"
+      ],
+      "accountRestrictions": null,
+      "createdAt": "2026-09-10T08:00:00.000Z",
+      "expiresAt": null
+    },
+    "workspace": {
+      "id": "ws_01h8a9b2c3d4e5f6",
+      "name": "Acme Logistics",
+      "slug": "acme-logistics"
+    },
+    "plan": {
+      "id": "standard",
+      "name": "Standard"
+    }
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `401` | `unauthorized` | Missing, invalid, or revoked API key. |
+| `403` | `plan_upgrade_required` | Workspace does not have commercial Developer API access (`api_access`). |
+| `403` | `forbidden` | Workspace is suspended. |
+| `429` | `rate_limited` | Rate limit exceeded (60 req/min). |

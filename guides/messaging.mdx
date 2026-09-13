@@ -1,0 +1,91 @@
+---
+title: "Messaging Lifecycle & Architecture"
+description: "Understanding WhatsApp delivery mechanics, status states, delivery pacing, and anti-abuse safeguards"
+---
+
+The Wareply Developer API provides a high-reliability gateway into WhatsApp business messaging. This guide details how messages flow from an API call to the WhatsApp network, how statuses are tracked, and how delivery pacing protects your connected phone numbers.
+
+## The Message Flow
+
+Every message submitted through the Developer API follows a deterministic multi-stage lifecycle:
+
+```mermaid
+flowchart TD
+    A["Developer API Request\nPOST /api/v1/messages/send"] --> B["Security & Quota Checks\n- Bearer Key & Scopes\n- E.164 Recipient Validation\n- Atomic Quota Reservation"]
+    B --> C["Durable Persistence\nStatus: accepted"]
+    C --> D["Worker Dispatch\nLoopback Worker Boundary"]
+    D --> E["Baileys Socket Transmission\nDelivery Pacing Applied"]
+    E --> F["WhatsApp Network Ack\nExternal Message ID Received"]
+    F --> G["Terminal Persistence\nStatus: sent"]
+    E -.->|Engine Error| H["Fatal Error (502)\nQuota Automatically Refunded"]
+    E -.->|Socket Timeout / Reset| I["Ambiguous Failure (504)\nStatus: dispatch_uncertain\nNo Auto-Refund"]
+```
+
+---
+
+## The "sent" Status and Handset Receipts
+
+A key architectural aspect of the Wareply Developer API is the boundary between server transmission and handset delivery:
+
+- **Status `sent`**: Indicates that the message passed all validations, was dispatched to the WhatsApp worker process, was transmitted over the WhatsApp WebSocket connection, and was acknowledged by WhatsApp's servers with a confirmed WhatsApp message ID (`external_message_id`).
+- **No Handset Delivery or Read Receipts**: Wareply does not track or expose handset-level delivery receipts (double checkmarks) or read receipts (blue checkmarks) via Developer API endpoints or webhooks. Status `sent` is the terminal state visible in the API.
+
+<Note>
+**Receipt Philosophy**: Do not build applications that depend on handset receipt webhooks from the Developer API. Once a message reaches `status: sent` and receives an `external_message_id`, the API considers the dispatch transaction complete.
+</Note>
+
+---
+
+## Delivery Pacing & Anti-Abuse Controls
+
+WhatsApp enforces strict heuristics on messaging velocity to prevent spam and protect users. Rapid bursts of messages or zero-delay loops can result in temporary rate limits or permanent account bans by WhatsApp.
+
+To protect your connected numbers, Wareply enforces:
+
+1. **Sequential Worker Queuing**: WhatsApp messages are sent sequentially through the connection rather than in unbounded concurrent bursts.
+2. **Prohibited Unsafe Flags**: The Developer API strictly blocks and rejects bypass flags such as:
+   - `parallel`
+   - `disable_safety`
+   - `bypass_rate_limit`
+   - `no_queue`
+   - `force_direct`
+   - `delay <= 0`
+
+Submitting any of these parameters in request payloads triggers an immediate HTTP 400 `invalid_request` error:
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "Unsafe sending parameter 'parallel' is strictly prohibited. WhatsApp delivery pacing cannot be bypassed.",
+    "request_id": "req_01hy8z9q2w4e",
+    "details": {
+      "forbidden_parameter": "parallel"
+    }
+  }
+}
+```
+
+---
+
+## Quota Reservation & Automatic Refunds
+
+The Developer API uses fail-closed atomic quota accounting:
+
+1. **Reservation**: Before any message is transmitted to the WhatsApp worker, 1 unit of `broadcast_messages` quota is reserved atomically.
+2. **Success**: Upon successful WhatsApp transmission and acknowledgment, the quota deduction is finalized.
+3. **Definitive Failure**: If the worker reports a definitive failure (e.g. invalid WhatsApp JID, recipient phone number not on WhatsApp, or worker connection failure), the API returns HTTP 502 `message_failed` and **automatically refunds** the reserved quota unit.
+4. **Ambiguous Failure (`dispatch_uncertain`)**: If a socket times out or drops during transmission, the API cannot determine if WhatsApp processed the message before the disconnection. To prevent quota abuse, quota is **not** immediately refunded, and the status is recorded as `dispatch_uncertain` (HTTP 504).
+
+---
+
+## Messaging Modalities Comparison
+
+Wareply supports three distinct messaging targets:
+
+| Modality | Target Format | Canonical Scope | Typical Use Case |
+| :--- | :--- | :--- | :--- |
+| **Direct Message** | International E.164 Phone (`+263782092900`) | `messages:send` | One-to-one transactional alerts, notifications, customer support |
+| **Group Message** | WhatsApp Group JID (`120363041234567890@g.us`) | `groups:write` | Team updates, community alerts, operational coordination |
+| **Channel Update** | WhatsApp Newsletter JID (`120363049876543210@newsletter`) | `channels:write` | Public announcements, broadcast newsletters, subscriber updates |
+| **Broadcast Campaign** | Array of up to 1,000 recipients | `broadcasts:write` | Scheduled marketing alerts, mass customer updates, event notifications |

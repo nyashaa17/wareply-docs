@@ -1,0 +1,274 @@
+---
+title: "Create Broadcast"
+description: "Launch an immediate multi-recipient broadcast or schedule a future campaign"
+---
+
+The `POST /api/v1/broadcasts` endpoint creates and dispatches a multi-recipient broadcast campaign across phone numbers, WhatsApp groups, or WhatsApp channels.
+
+Broadcast campaigns support immediate dispatch or scheduled future delivery, dynamic template variable interpolation, rich media attachments, and configurable delivery pacing between recipients.
+
+### Authentication & Permissions
+
+- **Method**: `POST`
+- **Path**: `/api/v1/broadcasts`
+- **Required Scope**: `broadcasts:write`
+  - **Group Broadcasts** (`target_type: "group"`): Requires **both** `broadcasts:write` and `groups:write`.
+  - **Channel Broadcasts** (`target_type: "channel"`): Requires **both** `broadcasts:write` and `channels:write`.
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `Content-Type: application/json` (required)
+  - `Idempotency-Key: <string>` (optional, recommended)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Request Parameters
+
+<ParamField body="account_id" type="string" required>
+  The UUID of the WhatsApp account to send the broadcast from.
+</ParamField>
+
+<ParamField body="target_type" type="string" default="individual">
+  The target audience type:
+  
+  - `individual` or `phone`: Direct WhatsApp phone numbers in international E.164 format.
+  - `group`: WhatsApp group JIDs ending in `@g.us`.
+  - `channel`: WhatsApp channel JIDs ending in `@newsletter`.
+  
+  <Warning>
+  **Mixed Targets Prohibited**: A broadcast must contain exactly one target type. Mixing phone numbers with group JIDs or channel JIDs triggers an HTTP 400 `invalid_request` error.
+  </Warning>
+</ParamField>
+
+<ParamField body="recipients" type="array of strings" required>
+  Array of recipient targets.
+  
+  - **Deduplication**: Duplicate entries are deduplicated automatically.
+  - **Limit**: Maximum of **1,000 unique recipients** per broadcast campaign. Exceeding 1,000 unique recipients triggers an HTTP 400 `validation_error`.
+</ParamField>
+
+<ParamField body="type" type="string" default="text">
+  Broadcast payload type: `text`, `media`, or `template`.
+</ParamField>
+
+<ParamField body="message" type="string">
+  The message text. Maximum 4,096 characters. Required when `type` is `text`. `text` is accepted as an alias.
+</ParamField>
+
+<ParamField body="template_id" type="string">
+  Template ID (`tpl_...`) to render. Required when `type` is `template`.
+</ParamField>
+
+<ParamField body="variables" type="object">
+  Key-value dictionary supplying values for all `{{variables}}` in the referenced template. Required when `type` is `template`.
+</ParamField>
+
+<ParamField body="asset_id" type="string">
+  Media asset UUID uploaded via the Wareply Dashboard. Required when `type` is `media`.
+</ParamField>
+
+<ParamField body="caption" type="string">
+  Optional text caption accompanying a media attachment. Maximum 4,096 characters.
+</ParamField>
+
+<ParamField body="delay_ms" type="integer" default="1000">
+  Delivery pacing delay in milliseconds between sequential recipients (clamped between `500` and `15000` ms). Zero or negative values are strictly prohibited.
+</ParamField>
+
+<ParamField body="scheduled_for" type="string">
+  Optional ISO 8601 timestamp for scheduled future dispatch (e.g. `2026-09-15T10:00:00.000Z`).
+  
+  - Must be in the future.
+  - Must be at least **60 seconds** ahead of the current timestamp.
+  - `send_at` and `scheduled_at` are accepted as aliases.
+</ParamField>
+
+<ParamField body="name" type="string">
+  Optional human-friendly campaign label for tracking in the Dashboard.
+</ParamField>
+
+---
+
+## Quota Reservation Mechanics
+
+Broadcast campaigns consume `broadcast_messages` quota with atomic reservation:
+
+- **Amount**: Exactly 1 unit per unique recipient target. A broadcast to 250 unique recipients reserves 250 quota units.
+- **Fail-Closed**: If your workspace has fewer available units than the unique recipient count, the request is rejected with HTTP 403 `quota_exceeded` before any messages are queued.
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash Direct Phone Broadcast
+curl -X POST "https://wareply.indexai.co.zw/api/v1/broadcasts" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: flash-sale-sep15" \
+  -d '{
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "name": "Flash Sale Announcement",
+    "target_type": "individual",
+    "recipients": [
+      "+263782092900",
+      "+263771234567",
+      "+263712345678"
+    ],
+    "message": "Flash sale: 50% off all items today only with code WAREPLY50!",
+    "delay_ms": 1500
+  }'
+```
+
+```bash Scheduled Template Campaign
+curl -X POST "https://wareply.indexai.co.zw/api/v1/broadcasts" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: sched-renewal-sep15" \
+  -d '{
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "name": "Membership Renewal Alert",
+    "target_type": "individual",
+    "recipients": [
+      "+263782092900",
+      "+263771234567"
+    ],
+    "type": "template",
+    "template_id": "tpl_01h8a9b2c3d4e5f6",
+    "variables": {
+      "name": "Valued Customer",
+      "discount": "20%"
+    },
+    "scheduled_for": "2026-09-15T10:00:00.000Z"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch("https://wareply.indexai.co.zw/api/v1/broadcasts", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json",
+    "Idempotency-Key": "campaign-sep-101"
+  },
+  body: JSON.stringify({
+    account_id: "acc_01hy8z9q2w4e1234",
+    name: "Customer Survey",
+    target_type: "individual",
+    recipients: ["+263782092900", "+263771234567"],
+    message: "We would love your feedback on our service!"
+  })
+});
+
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+payload = {
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "name": "Customer Survey",
+    "target_type": "individual",
+    "recipients": ["+263782092900", "+263771234567"],
+    "message": "We would love your feedback on our service!"
+}
+
+response = requests.post(
+    "https://wareply.indexai.co.zw/api/v1/broadcasts",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "campaign-sep-101"
+    },
+    json=payload
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  The created broadcast record.
+
+  <Expandable title="data properties">
+    <ResponseField name="id" type="string" required>
+      Unique broadcast campaign ID (`bc_...`).
+    </ResponseField>
+    <ResponseField name="account_id" type="string" required>
+      Sending account UUID.
+    </ResponseField>
+    <ResponseField name="name" type="string | null" required>
+      Campaign label.
+    </ResponseField>
+    <ResponseField name="target_type" type="string" required>
+      Target classification (`individual`, `group`, or `channel`).
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      Initial status: `queued` (for immediate sends) or `scheduled` (for future dispatch).
+    </ResponseField>
+    <ResponseField name="total_targets" type="integer" required>
+      Number of unique recipient targets.
+    </ResponseField>
+    <ResponseField name="sent_count" type="integer" required>
+      Number of messages successfully dispatched so far.
+    </ResponseField>
+    <ResponseField name="failed_count" type="integer" required>
+      Number of messages that failed delivery.
+    </ResponseField>
+    <ResponseField name="delay_ms" type="integer" required>
+      Configured delay between sequential messages in milliseconds.
+    </ResponseField>
+    <ResponseField name="send_at" type="string | null" required>
+      Scheduled execution timestamp in ISO 8601, or `null` for immediate dispatch.
+    </ResponseField>
+    <ResponseField name="created_at" type="string" required>
+      ISO 8601 creation timestamp.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 201 Created)
+
+```json
+{
+  "data": {
+    "id": "bc_01hy8z9q2w4e1234",
+    "workspace_id": "ws_01h8a9b2c3d4e5f6",
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "name": "Flash Sale Announcement",
+    "target_type": "individual",
+    "type": "text",
+    "status": "queued",
+    "total_targets": 3,
+    "sent_count": 0,
+    "failed_count": 0,
+    "skipped_count": 0,
+    "delay_ms": 1500,
+    "send_at": null,
+    "created_at": "2026-09-13T03:50:00.000Z"
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `validation_error` | Recipients array empty, recipient count > 1,000, scheduled time not >= 60s in future, or missing template variables. |
+| `400` | `invalid_request` | Mixed target types, prohibited anti-abuse controls, or `delay <= 0`. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | Lacks `broadcasts:write`, or missing `groups:write` / `channels:write` for group/channel campaigns. |
+| `403` | `quota_exceeded` | Not enough `broadcast_messages` monthly quota available. |
+| `404` | `not_found` | Account, template, or media asset not found in this workspace. |

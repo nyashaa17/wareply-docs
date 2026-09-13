@@ -1,0 +1,173 @@
+---
+title: "Create Template"
+description: "Create a reusable Wareply message template with variable interpolation"
+---
+
+The `POST /api/v1/templates` endpoint creates a reusable Wareply message template within your workspace.
+
+Placeholders in the body should use the double-bracket syntax: `{{variable_name}}`. The API automatically extracts and stores distinct variable names from the template body in deterministic order.
+
+<Note>
+**Wareply Message Templates**: Wareply templates are workspace-managed templates for broadcast and automation workflows. They are not external WhatsApp Business API (WABA) template submissions.
+</Note>
+
+### Authentication & Permissions
+
+- **Method**: `POST`
+- **Path**: `/api/v1/templates`
+- **Required Scope**: `templates:write`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `Content-Type: application/json` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Request Parameters
+
+<ParamField body="name" type="string" required>
+  Descriptive template name (2 to 100 characters).
+</ParamField>
+
+<ParamField body="body" type="string" required>
+  Template text content containing optional `{{variable_name}}` placeholders (1 to 4,096 characters).
+</ParamField>
+
+<ParamField body="account_id" type="string">
+  Optional WhatsApp account UUID to associate with this template. If omitted, the template is workspace-wide.
+</ParamField>
+
+<ParamField body="category" type="string">
+  Optional categorization: `marketing`, `utility`, or `authentication`.
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://wareply.indexai.co.zw/api/v1/templates" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Order Confirmation",
+    "body": "Hi {{name}}, your order {{order_id}} is ready for pickup at our {{location}} branch!",
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "category": "utility"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch("https://wareply.indexai.co.zw/api/v1/templates", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    name: "Order Confirmation",
+    body: "Hi {{name}}, your order {{order_id}} is ready for pickup at our {{location}} branch!",
+    account_id: "acc_01hy8z9q2w4e1234",
+    category: "utility"
+  })
+});
+
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+payload = {
+    "name": "Order Confirmation",
+    "body": "Hi {{name}}, your order {{order_id}} is ready for pickup at our {{location}} branch!",
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "category": "utility"
+}
+
+response = requests.post(
+    "https://wareply.indexai.co.zw/api/v1/templates",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    },
+    json=payload
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  Created template record.
+
+  <Expandable title="data properties">
+    <ResponseField name="id" type="string" required>
+      Stable template identifier (e.g. `tpl_01h8a9b2c3d4e5f6`).
+    </ResponseField>
+    <ResponseField name="workspaceId" type="string" required>
+      Parent workspace UUID.
+    </ResponseField>
+    <ResponseField name="accountId" type="string | null" required>
+      Bound WhatsApp account UUID, or `null`.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Template name.
+    </ResponseField>
+    <ResponseField name="body" type="string" required>
+      Template content.
+    </ResponseField>
+    <ResponseField name="variables" type="array of strings" required>
+      Array of extracted variable names (`["name", "order_id", "location"]`).
+    </ResponseField>
+    <ResponseField name="createdAt" type="string" required>
+      ISO 8601 creation timestamp.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string" required>
+      ISO 8601 last update timestamp.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 201 Created)
+
+```json
+{
+  "data": {
+    "id": "tpl_01h8a9b2c3d4e5f6",
+    "workspaceId": "ws_01h8a9b2c3d4e5f6",
+    "accountId": "acc_01hy8z9q2w4e1234",
+    "name": "Order Confirmation",
+    "body": "Hi {{name}}, your order {{order_id}} is ready for pickup at our {{location}} branch!",
+    "variables": [
+      "name",
+      "order_id",
+      "location"
+    ],
+    "createdAt": "2026-09-13T03:50:00.000Z",
+    "updatedAt": "2026-09-13T03:50:00.000Z"
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `validation_error` | Missing name or body, name > 100 characters, or body > 4096 characters. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `templates:write`. |
+| `403` | `account_access_denied` | Key whitelist forbids access to the specified `account_id`. |
+| `404` | `not_found` | Specified `account_id` not found in this workspace. |

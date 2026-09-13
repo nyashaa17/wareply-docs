@@ -1,0 +1,145 @@
+---
+title: "Get Group Message"
+description: "Retrieve the status and metadata of a previously dispatched group message"
+---
+
+The `GET /api/v1/groups/messages/:id` endpoint retrieves the delivery status and metadata of a group message using its operation ID.
+
+Queries are strictly isolated to the workspace associated with your API key.
+
+### Authentication & Permissions
+
+- **Method**: `GET`
+- **Path**: `/api/v1/groups/messages/:id`
+- **Required Scope**: `groups:read`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique group message operation ID returned by the send endpoint (e.g. `msg_grp_01hy8z9q2w4e1234`).
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://wareply.indexai.co.zw/api/v1/groups/messages/msg_grp_01hy8z9q2w4e1234" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+```javascript Node.js
+const messageId = "msg_grp_01hy8z9q2w4e1234";
+
+const response = await fetch(`https://wareply.indexai.co.zw/api/v1/groups/messages/${messageId}`, {
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Accept": "application/json"
+  }
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+message_id = "msg_grp_01hy8z9q2w4e1234"
+
+response = requests.get(
+    f"https://wareply.indexai.co.zw/api/v1/groups/messages/{message_id}",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Accept": "application/json"
+    }
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  The group message record.
+
+  <Expandable title="data properties">
+    <ResponseField name="id" type="string" required>
+      Stable group message operation ID.
+    </ResponseField>
+    <ResponseField name="account_id" type="string" required>
+      UUID of the WhatsApp account that sent the message.
+    </ResponseField>
+    <ResponseField name="group_id" type="string" required>
+      Target group JID (`...@g.us`).
+    </ResponseField>
+    <ResponseField name="type" type="string" required>
+      Payload type (`text` or `media`).
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      Delivery status: `sent`, `accepted`, `queued`, `processing`, or `failed`.
+    </ResponseField>
+    <ResponseField name="external_message_id" type="string | null" required>
+      Confirmed WhatsApp message ID returned by WhatsApp servers.
+    </ResponseField>
+    <ResponseField name="error" type="string | null" required>
+      Error description if the message failed, or `null`.
+    </ResponseField>
+    <ResponseField name="created_at" type="string" required>
+      ISO 8601 creation timestamp.
+    </ResponseField>
+    <ResponseField name="sent_at" type="string | null" required>
+      ISO 8601 network acknowledgment timestamp.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "id": "msg_grp_01hy8z9q2w4e1234",
+    "account_id": "acc_01hy8z9q2w4e",
+    "accountId": "acc_01hy8z9q2w4e",
+    "group_id": "120363041234567890@g.us",
+    "groupId": "120363041234567890@g.us",
+    "group_jid": "120363041234567890@g.us",
+    "groupJid": "120363041234567890@g.us",
+    "type": "text",
+    "status": "sent",
+    "external_message_id": "3EB0ABCDEF1234567890",
+    "externalMessageId": "3EB0ABCDEF1234567890",
+    "error": null,
+    "created_at": "2026-09-13T03:50:00.000Z",
+    "createdAt": "2026-09-13T03:50:00.000Z",
+    "sent_at": "2026-09-13T03:50:01.250Z",
+    "sentAt": "2026-09-13T03:50:01.250Z"
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | The `:id` parameter was not provided. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `groups:read`. |
+| `404` | `not_found` | Group message does not exist or belongs to another workspace. |

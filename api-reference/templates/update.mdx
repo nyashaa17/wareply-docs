@@ -1,0 +1,156 @@
+---
+title: "Update Template"
+description: "Modify the name or content of an existing Wareply message template"
+---
+
+The `PUT /api/v1/templates/:id` endpoint updates the name or body of an existing template. If the `body` is updated, the API automatically re-extracts the variable tokens.
+
+### Authentication & Permissions
+
+- **Method**: `PUT`
+- **Path**: `/api/v1/templates/:id`
+- **Required Scope**: `templates:write`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `Content-Type: application/json` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The template ID to update (e.g. `tpl_01h8a9b2c3d4e5f6`).
+</ParamField>
+
+---
+
+## Request Parameters
+
+<ParamField body="name" type="string">
+  Updated template name (2 to 100 characters).
+</ParamField>
+
+<ParamField body="body" type="string">
+  Updated template body text with `{{variables}}` (1 to 4,096 characters).
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X PUT "https://wareply.indexai.co.zw/api/v1/templates/tpl_01h8a9b2c3d4e5f6" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Order Confirmation",
+    "body": "Hi {{name}}, your order #{{order_id}} has arrived at {{location}}! Track online at {{tracking_url}}"
+  }'
+```
+
+```javascript Node.js
+const templateId = "tpl_01h8a9b2c3d4e5f6";
+
+const response = await fetch(`https://wareply.indexai.co.zw/api/v1/templates/${templateId}`, {
+  method: "PUT",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    name: "Updated Order Confirmation",
+    body: "Hi {{name}}, your order #{{order_id}} has arrived at {{location}}! Track online at {{tracking_url}}"
+  })
+});
+
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+template_id = "tpl_01h8a9b2c3d4e5f6"
+
+payload = {
+    "name": "Updated Order Confirmation",
+    "body": "Hi {{name}}, your order #{{order_id}} has arrived at {{location}}! Track online at {{tracking_url}}"
+}
+
+response = requests.put(
+    f"https://wareply.indexai.co.zw/api/v1/templates/{template_id}",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    },
+    json=payload
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  The updated template record.
+
+  <Expandable title="data properties">
+    <ResponseField name="id" type="string" required>
+      Template ID.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Updated name.
+    </ResponseField>
+    <ResponseField name="body" type="string" required>
+      Updated body.
+    </ResponseField>
+    <ResponseField name="variables" type="array of strings" required>
+      Recalculated variable array.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string" required>
+      ISO 8601 update timestamp.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "id": "tpl_01h8a9b2c3d4e5f6",
+    "workspaceId": "ws_01h8a9b2c3d4e5f6",
+    "accountId": "acc_01hy8z9q2w4e1234",
+    "name": "Updated Order Confirmation",
+    "body": "Hi {{name}}, your order #{{order_id}} has arrived at {{location}}! Track online at {{tracking_url}}",
+    "variables": [
+      "name",
+      "order_id",
+      "location",
+      "tracking_url"
+    ],
+    "createdAt": "2026-09-10T12:00:00.000Z",
+    "updatedAt": "2026-09-13T03:50:00.000Z"
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `validation_error` | Empty name or body, name > 100 chars, or body > 4096 chars. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `templates:write`. |
+| `404` | `not_found` | Template not found in this workspace. |

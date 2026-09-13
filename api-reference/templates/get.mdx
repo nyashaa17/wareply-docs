@@ -1,0 +1,137 @@
+---
+title: "Get Template"
+description: "Retrieve details and variables of a specific Wareply message template"
+---
+
+The `GET /api/v1/templates/:id` endpoint retrieves a single template by its identifier.
+
+### Authentication & Permissions
+
+- **Method**: `GET`
+- **Path**: `/api/v1/templates/:id`
+- **Required Scope**: `templates:read`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique template ID (e.g. `tpl_01h8a9b2c3d4e5f6`).
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://wareply.indexai.co.zw/api/v1/templates/tpl_01h8a9b2c3d4e5f6" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+```javascript Node.js
+const templateId = "tpl_01h8a9b2c3d4e5f6";
+
+const response = await fetch(`https://wareply.indexai.co.zw/api/v1/templates/${templateId}`, {
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Accept": "application/json"
+  }
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+template_id = "tpl_01h8a9b2c3d4e5f6"
+
+response = requests.get(
+    f"https://wareply.indexai.co.zw/api/v1/templates/{template_id}",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Accept": "application/json"
+    }
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  The template record.
+
+  <Expandable title="data properties">
+    <ResponseField name="id" type="string" required>
+      Unique template identifier.
+    </ResponseField>
+    <ResponseField name="workspaceId" type="string" required>
+      Parent workspace UUID.
+    </ResponseField>
+    <ResponseField name="accountId" type="string | null" required>
+      Associated account UUID, or `null`.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Template name.
+    </ResponseField>
+    <ResponseField name="body" type="string" required>
+      Template content.
+    </ResponseField>
+    <ResponseField name="variables" type="array of strings" required>
+      Array of extracted variable names.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string" required>
+      ISO 8601 creation timestamp.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string" required>
+      ISO 8601 last update timestamp.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "id": "tpl_01h8a9b2c3d4e5f6",
+    "workspaceId": "ws_01h8a9b2c3d4e5f6",
+    "accountId": "acc_01hy8z9q2w4e1234",
+    "name": "Order Confirmation",
+    "body": "Hi {{name}}, your order {{order_id}} is ready for pickup at our {{location}} branch!",
+    "variables": [
+      "name",
+      "order_id",
+      "location"
+    ],
+    "createdAt": "2026-09-10T12:00:00.000Z",
+    "updatedAt": "2026-09-10T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | The `:id` parameter was not supplied. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `templates:read`. |
+| `403` | `account_access_denied` | Key whitelist does not allow access to the template's account. |
+| `404` | `not_found` | Template not found in this workspace. |

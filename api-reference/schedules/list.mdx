@@ -1,0 +1,174 @@
+---
+title: "List Schedules"
+description: "Retrieve all scheduled broadcast campaigns pending future delivery"
+---
+
+The `GET /api/v1/schedules` endpoint returns all scheduled broadcast campaigns in your workspace that are awaiting their execution timestamp.
+
+<Note>
+**Creating Schedules**: There is no standalone `POST /schedules` endpoint. Scheduled messages are created through the [Create Broadcast](/api-reference/broadcasts/create) endpoint by including the `scheduled_for` parameter.
+</Note>
+
+### Authentication & Permissions
+
+- **Method**: `GET`
+- **Path**: `/api/v1/schedules`
+- **Required Scope**: `broadcasts:read`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Query Parameters
+
+<ParamField query="account_id" type="string">
+  Optional filter by WhatsApp account UUID.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="50">
+  Maximum results per page (between 1 and 100).
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Number of records to skip for pagination.
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://wareply.indexai.co.zw/api/v1/schedules?limit=20" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+```javascript Node.js
+const response = await fetch("https://wareply.indexai.co.zw/api/v1/schedules?limit=20", {
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Accept": "application/json"
+  }
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "https://wareply.indexai.co.zw/api/v1/schedules",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Accept": "application/json"
+    },
+    params={"limit": 20}
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  Schedules listing envelope.
+
+  <Expandable title="data properties">
+    <ResponseField name="schedules" type="array of objects" required>
+      Array of pending scheduled broadcast records.
+      
+      <Expandable title="schedule properties">
+        <ResponseField name="id" type="string" required>
+          The broadcast schedule identifier (`bc_...`).
+        </ResponseField>
+        <ResponseField name="name" type="string | null" required>
+          Campaign name.
+        </ResponseField>
+        <ResponseField name="target_type" type="string" required>
+          Target audience (`individual`, `group`, or `channel`).
+        </ResponseField>
+        <ResponseField name="status" type="string" required>
+          Status (`scheduled`).
+        </ResponseField>
+        <ResponseField name="total_targets" type="integer" required>
+          Number of recipient targets.
+        </ResponseField>
+        <ResponseField name="send_at" type="string" required>
+          ISO 8601 timestamp when delivery will be initiated.
+        </ResponseField>
+        <ResponseField name="created_at" type="string" required>
+          ISO 8601 creation timestamp.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="pagination" type="object" required>
+      Pagination context.
+
+      <Expandable title="pagination properties">
+        <ResponseField name="limit" type="integer" required>
+          Applied limit.
+        </ResponseField>
+        <ResponseField name="offset" type="integer" required>
+          Applied offset.
+        </ResponseField>
+        <ResponseField name="total" type="integer" required>
+          Total scheduled campaigns pending delivery.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "schedules": [
+      {
+        "id": "bc_01hy8z9q2w4e1234",
+        "workspace_id": "ws_01h8a9b2c3d4e5f6",
+        "account_id": "acc_01hy8z9q2w4e1234",
+        "name": "Weekly Product Announcement",
+        "target_type": "individual",
+        "type": "text",
+        "status": "scheduled",
+        "total_targets": 500,
+        "sent_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "delay_ms": 1000,
+        "send_at": "2026-09-15T10:00:00.000Z",
+        "created_at": "2026-09-13T03:50:00.000Z"
+      }
+    ],
+    "pagination": {
+      "limit": 20,
+      "offset": 0,
+      "total": 1
+    }
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `broadcasts:read`. |
+| `403` | `account_access_denied` | Key whitelist forbids access to the queried `account_id`. |

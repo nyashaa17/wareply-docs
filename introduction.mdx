@@ -1,0 +1,69 @@
+---
+title: "Introduction"
+description: "Overview of the Wareply Developer API platform and architecture"
+---
+
+The Wareply Developer API enables programmatic interaction with WhatsApp business accounts connected to your Wareply workspace. Build automations, send notifications, broadcast updates, manage customer messaging workflows, and schedule campaigns across direct messages, groups, and channels.
+
+All endpoints adhere to REST conventions, authenticate via Bearer API keys, enforce strict workspace isolation, and communicate using JSON over HTTPS.
+
+## Base URL
+
+All Developer API requests must be made to the following base URL:
+
+```http
+https://wareply.indexai.co.zw/api/v1
+```
+
+Always use HTTPS. Plain HTTP requests are rejected.
+
+## Architectural Principles
+
+The Developer API is an interface to Wareply's existing WhatsApp infrastructure, not a parallel WhatsApp stack. Every request passes through a multi-tier security and execution pipeline:
+
+1. **Request Tracing**: Every inbound request is assigned or preserves a unique correlation ID via `X-Request-ID`.
+2. **Rate Limiting**: Sliding-window rate limiting is evaluated per API key before heavy processing.
+3. **Authentication & Isolation**: Cryptographic API key verification resolves the tenant workspace and authorized account restrictions. Workspace boundaries are strictly enforced.
+4. **Distributed Idempotency**: Mutating requests with an `Idempotency-Key` or `X-Idempotency-Key` header are deduplicated atomically across a 24-hour retention window.
+5. **Quota Reservation**: Operational message quota is atomically reserved prior to dispatch and refunded automatically if a fatal failure occurs.
+6. **Worker Dispatch**: The API translates developer operations into WhatsApp worker tasks, executing safely with built-in delivery pacing to maintain account integrity.
+
+## Core Capabilities
+
+<CardGroup cols={2}>
+  <Card title="Direct Messaging" icon="message">
+    Send transactional text and rich media messages to individual WhatsApp recipients in international E.164 format.
+  </Card>
+  <Card title="Groups & Communities" icon="users">
+    Inspect group memberships, synchronize group rosters, and dispatch messages to WhatsApp group chats.
+  </Card>
+  <Card title="Channels & Newsletters" icon="bullhorn">
+    Publish announcements and administrative updates directly to WhatsApp channels and newsletter subscribers.
+  </Card>
+  <Card title="Templates & Broadcasts" icon="layer-group">
+    Manage reusable message templates with dynamic variable interpolation, and run campaigns of up to 1,000 recipients with automated cancellation and refund protection.
+  </Card>
+</CardGroup>
+
+## Supported Operations Overview
+
+The public Developer API provides 29 purpose-built endpoints:
+
+| Domain | Description | Canonical Scope |
+| :--- | :--- | :--- |
+| **Identity** | Credential verification, tenant workspace resolution, and plan entitlements | Any valid API key |
+| **Direct Messaging** | 1-to-1 message dispatch and operational status queries | `messages:send`, `messages:read` |
+| **Groups** | Group roster queries, cache synchronization, and group messaging | `groups:read`, `groups:write` |
+| **Channels** | Channel listing, subscriber metadata, cache refresh, and updates | `channels:read`, `channels:write` |
+| **Templates** | Template creation, listing, variable extraction, and lifecycle | `templates:read`, `templates:write` |
+| **Broadcasts** | Multi-target campaigns, recipient inspection, and safe cancellation | `broadcasts:read`, `broadcasts:write` |
+| **Schedules** | Scheduled broadcast listing, inspection, and deletion | `broadcasts:read`, `broadcasts:write` |
+| **Diagnostics** | Atomic idempotency pipeline validation | Any valid API key |
+
+## Operational Boundaries
+
+To ensure reliable platform operation and compliance with WhatsApp messaging policies, the following boundaries apply:
+
+- **Terminal Send Status**: The status `sent` indicates that the message has been accepted by the WhatsApp engine and acknowledged by the WhatsApp network with an external message ID. Handset delivery receipts (double ticks) and read receipts (blue ticks) are not exposed by the Developer API.
+- **Media Ingestion**: Media assets must be uploaded through the Wareply Dashboard. The Developer API references existing media items using their `asset_id`. Multipart file upload is not accepted on `/api/v1`.
+- **Outbound Webhooks**: The Developer API does not dispatch outbound webhooks for delivery status or inbound messages. Status queries are performed via polling or retrieval endpoints.

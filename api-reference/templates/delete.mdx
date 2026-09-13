@@ -1,0 +1,113 @@
+---
+title: "Delete Template"
+description: "Permanently remove a Wareply message template from your workspace"
+---
+
+The `DELETE /api/v1/templates/:id` endpoint permanently removes a message template from your workspace.
+
+<Note>
+**Historical Immutability**: Deleting a template does not alter past broadcasts or queued campaigns that referenced this template. When a broadcast is created from a template, Wareply renders and snapshots the final text permanently to ensure historical audit integrity.
+</Note>
+
+### Authentication & Permissions
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/templates/:id`
+- **Required Scope**: `templates:write`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The template ID to delete (e.g. `tpl_01h8a9b2c3d4e5f6`).
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE "https://wareply.indexai.co.zw/api/v1/templates/tpl_01h8a9b2c3d4e5f6" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+```javascript Node.js
+const templateId = "tpl_01h8a9b2c3d4e5f6";
+
+const response = await fetch(`https://wareply.indexai.co.zw/api/v1/templates/${templateId}`, {
+  method: "DELETE",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Accept": "application/json"
+  }
+});
+
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+template_id = "tpl_01h8a9b2c3d4e5f6"
+
+response = requests.delete(
+    f"https://wareply.indexai.co.zw/api/v1/templates/{template_id}",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Accept": "application/json"
+    }
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  Deletion confirmation envelope.
+
+  <Expandable title="data properties">
+    <ResponseField name="success" type="boolean" required>
+      Indicates successful deletion (`true`).
+    </ResponseField>
+    <ResponseField name="id" type="string" required>
+      ID of the deleted template.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "success": true,
+    "id": "tpl_01h8a9b2c3d4e5f6"
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | Template ID parameter is missing. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `templates:write`. |
+| `404` | `not_found` | Template not found in this workspace. |

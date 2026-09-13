@@ -1,0 +1,149 @@
+---
+title: "Cancel Broadcast"
+description: "Halt an active or scheduled broadcast campaign and refund unused recipient quota"
+---
+
+The `POST /api/v1/broadcasts/:id/cancel` endpoint cancels an active in-flight broadcast or scheduled future campaign.
+
+Cancelling a broadcast stops the remaining queued worker dispatch and refunds unused queued recipient quota units atomically according to implemented billing logic.
+
+### Authentication & Permissions
+
+- **Method**: `POST`
+- **Path**: `/api/v1/broadcasts/:id/cancel`
+- **Required Scope**: `broadcasts:write`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `Content-Type: application/json` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique broadcast campaign ID to cancel (e.g. `bc_01hy8z9q2w4e1234`).
+</ParamField>
+
+---
+
+## Cancellation & Quota Refund Rules
+
+The cancellation pipeline executes with atomic state transitions to guarantee consistency:
+
+1. **State Assertion**: If the broadcast is already in a terminal state (`completed`, `failed`, or `cancelled`), the request is rejected with HTTP 409 `conflict`.
+2. **Atomic Transition**: The broadcast status transitions to `cancelled` in the authoritative database.
+3. **Quota Refund Computation**:
+   - **Scheduled Campaigns**: 100% of the reserved recipient quota is refunded to your workspace balance immediately.
+   - **In-Flight Campaigns**: Unattempted recipients (calculated as `total_targets - sent_count - failed_count`) are refunded immediately. Messages already sent to WhatsApp cannot be recalled.
+4. **Worker Interruption**: An abort signal is delivered to the WhatsApp worker process to halt further message dispatches for this campaign.
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://wareply.indexai.co.zw/api/v1/broadcasts/bc_01hy8z9q2w4e1234/cancel" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json"
+```
+
+```javascript Node.js
+const broadcastId = "bc_01hy8z9q2w4e1234";
+
+const response = await fetch(`https://wareply.indexai.co.zw/api/v1/broadcasts/${broadcastId}/cancel`, {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+  }
+});
+
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+broadcast_id = "bc_01hy8z9q2w4e1234"
+
+response = requests.post(
+    f"https://wareply.indexai.co.zw/api/v1/broadcasts/{broadcast_id}/cancel",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    }
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  The cancelled broadcast record with refund confirmation.
+
+  <Expandable title="data properties">
+    <ResponseField name="id" type="string" required>
+      Broadcast identifier (`bc_...`).
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      Updated status: `cancelled`.
+    </ResponseField>
+    <ResponseField name="refunded_units" type="integer" required>
+      The exact number of `broadcast_messages` quota units credited back to your workspace.
+    </ResponseField>
+    <ResponseField name="total_targets" type="integer" required>
+      Total campaign targets.
+    </ResponseField>
+    <ResponseField name="sent_count" type="integer" required>
+      Number of messages that were transmitted prior to cancellation.
+    </ResponseField>
+    <ResponseField name="completed_at" type="string" required>
+      ISO 8601 cancellation timestamp.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "id": "bc_01hy8z9q2w4e1234",
+    "workspace_id": "ws_01h8a9b2c3d4e5f6",
+    "account_id": "acc_01hy8z9q2w4e",
+    "name": "Flash Sale Announcement",
+    "target_type": "individual",
+    "status": "cancelled",
+    "total_targets": 250,
+    "sent_count": 50,
+    "failed_count": 0,
+    "skipped_count": 0,
+    "refunded_units": 200,
+    "refundedUnits": 200,
+    "completed_at": "2026-09-13T03:52:10.000Z"
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | Broadcast ID parameter missing. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `broadcasts:write`. |
+| `404` | `not_found` | Broadcast not found in this workspace. |
+| `409` | `conflict` | Campaign is already in a terminal state (`completed`, `failed`, or `cancelled`). |

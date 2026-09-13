@@ -1,0 +1,170 @@
+---
+title: "List Templates"
+description: "Retrieve a paginated list of Wareply message templates in your workspace"
+---
+
+The `GET /api/v1/templates` endpoint returns a paginated list of reusable Wareply message templates created within the authenticated workspace.
+
+### Authentication & Permissions
+
+- **Method**: `GET`
+- **Path**: `/api/v1/templates`
+- **Required Scope**: `templates:read`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Query Parameters
+
+<ParamField query="account_id" type="string">
+  Optional filter to list only templates associated with a specific WhatsApp account UUID.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="50">
+  Maximum number of templates to return (between 1 and 100).
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Number of records to skip for pagination.
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://wareply.indexai.co.zw/api/v1/templates?limit=20" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+```javascript Node.js
+const response = await fetch("https://wareply.indexai.co.zw/api/v1/templates?limit=20", {
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Accept": "application/json"
+  }
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "https://wareply.indexai.co.zw/api/v1/templates",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Accept": "application/json"
+    },
+    params={"limit": 20}
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  Template listing envelope.
+
+  <Expandable title="data properties">
+    <ResponseField name="templates" type="array of objects" required>
+      List of template records.
+      
+      <Expandable title="template item properties">
+        <ResponseField name="id" type="string" required>
+          Unique template identifier (`tpl_...`).
+        </ResponseField>
+        <ResponseField name="workspaceId" type="string" required>
+          The parent workspace UUID.
+        </ResponseField>
+        <ResponseField name="accountId" type="string | null" required>
+          The associated WhatsApp account UUID, or `null` if workspace-wide.
+        </ResponseField>
+        <ResponseField name="name" type="string" required>
+          Template name.
+        </ResponseField>
+        <ResponseField name="body" type="string" required>
+          Raw message template text containing `{{variable}}` placeholders.
+        </ResponseField>
+        <ResponseField name="variables" type="array of strings" required>
+          Distinct variables extracted deterministically from the body in order of appearance.
+        </ResponseField>
+        <ResponseField name="createdAt" type="string" required>
+          ISO 8601 creation timestamp.
+        </ResponseField>
+        <ResponseField name="updatedAt" type="string" required>
+          ISO 8601 last modified timestamp.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="pagination" type="object" required>
+      Pagination context.
+
+      <Expandable title="pagination properties">
+        <ResponseField name="limit" type="integer" required>
+          Applied limit.
+        </ResponseField>
+        <ResponseField name="offset" type="integer" required>
+          Applied offset.
+        </ResponseField>
+        <ResponseField name="total" type="integer" required>
+          Total number of templates in the workspace matching the filter.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "templates": [
+      {
+        "id": "tpl_01h8a9b2c3d4e5f6",
+        "workspaceId": "ws_01h8a9b2c3d4e5f6",
+        "accountId": "acc_01hy8z9q2w4e1234",
+        "name": "Order Confirmation",
+        "body": "Hi {{name}}, your order {{order_id}} is ready for pickup!",
+        "variables": [
+          "name",
+          "order_id"
+        ],
+        "createdAt": "2026-09-10T12:00:00.000Z",
+        "updatedAt": "2026-09-10T12:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "limit": 20,
+      "offset": 0,
+      "total": 1
+    }
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `templates:read`. |
+| `403` | `account_access_denied` | Key whitelist does not include the requested `account_id`. |

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Wareply Developer API",
+  "theme": "mint",
+  "colors": {
+    "primary": "#16A34A",
+    "light": "#22C55E",
+    "dark": "#15803D"
+  },
+  "favicon": "/favicon.ico",
+  "logo": {
+    "light": "/logo/wareply-logo.png",
+    "dark": "/logo/wareply-logo.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "Dashboard",
+      "href": "https://wareply.indexai.co.zw"
+    }
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "introduction",
+          "quickstart",
+          "authentication",
+          "rate-limits",
+          "errors",
+          "idempotency"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/messaging",
+          "guides/accounts-and-assets"
+        ]
+      },
+      {
+        "group": "Core Messaging",
+        "pages": [
+          "api-reference/me",
+          "api-reference/messages/send",
+          "api-reference/messages/get"
+        ]
+      },
+      {
+        "group": "Groups & Communities",
+        "pages": [
+          "api-reference/groups/list",
+          "api-reference/groups/get",
+          "api-reference/groups/send",
+          "api-reference/groups/refresh",
+          "api-reference/groups/get-message"
+        ]
+      },
+      {
+        "group": "Channels & Newsletters",
+        "pages": [
+          "api-reference/channels/list",
+          "api-reference/channels/get",
+          "api-reference/channels/send",
+          "api-reference/channels/refresh",
+          "api-reference/channels/get-message"
+        ]
+      },
+      {
+        "group": "Templates",
+        "pages": [
+          "api-reference/templates/list",
+          "api-reference/templates/create",
+          "api-reference/templates/get",
+          "api-reference/templates/update",
+          "api-reference/templates/delete"
+        ]
+      },
+      {
+        "group": "Broadcasts & Schedules",
+        "pages": [
+          "api-reference/broadcasts/create",
+          "api-reference/broadcasts/list",
+          "api-reference/broadcasts/get",
+          "api-reference/broadcasts/recipients",
+          "api-reference/broadcasts/cancel",
+          "api-reference/schedules/list",
+          "api-reference/schedules/get",
+          "api-reference/schedules/cancel"
+        ]
+      }
+    ]
+  }
+}

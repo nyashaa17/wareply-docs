@@ -1,0 +1,208 @@
+---
+title: "Send Group Message"
+description: "Send a text or media message to a WhatsApp group chat"
+---
+
+The Developer API supports two equivalent routes for sending messages to a WhatsApp group:
+
+- `POST /api/v1/groups/messages` (with `group_id` in the request body)
+- `POST /api/v1/groups/:id/messages` (with the group JID in the URL path)
+
+Both routes execute the same underlying business logic, enforce atomic quota reservation, and route through the account's WhatsApp worker with anti-abuse delivery pacing.
+
+### Authentication & Permissions
+
+- **Methods**: `POST`
+- **Paths**: 
+  - `/api/v1/groups/messages`
+  - `/api/v1/groups/:id/messages`
+- **Required Scope**: `groups:write`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `Content-Type: application/json` (required)
+  - `Idempotency-Key: <string>` (optional, recommended)
+  - `X-Request-ID: <string>` (optional)
+
+---
+
+## Request Parameters
+
+<ParamField path="id" type="string">
+  Applicable only when using `POST /api/v1/groups/:id/messages`. The WhatsApp group JID (e.g. `120363041234567890@g.us`).
+</ParamField>
+
+<ParamField body="account_id" type="string" required>
+  The UUID of the WhatsApp account in your workspace to send from.
+</ParamField>
+
+<ParamField body="group_id" type="string">
+  The WhatsApp group JID (e.g. `120363041234567890@g.us`). Required when calling `POST /api/v1/groups/messages`.
+  
+  - Must end in `@g.us`.
+  - `groupId` and `to` are accepted as aliases.
+</ParamField>
+
+<ParamField body="type" type="string" default="text">
+  Payload type: `text` or `media`.
+</ParamField>
+
+<ParamField body="text" type="string">
+  Message body text. Maximum 4,096 characters. Required if `asset_id` is not provided. `message` is accepted as an alias.
+</ParamField>
+
+<ParamField body="asset_id" type="string">
+  Media asset identifier uploaded in the Wareply Dashboard. Required if `text` is omitted. `assetId` is accepted as an alias.
+</ParamField>
+
+<ParamField body="caption" type="string">
+  Optional caption accompanying a media attachment. Maximum 1,024 characters.
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash POST /groups/messages
+curl -X POST "https://wareply.indexai.co.zw/api/v1/groups/messages" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: grp-shift-announcement-1" \
+  -d '{
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "group_id": "120363041234567890@g.us",
+    "text": "Reminder: All warehouse staff briefing begins in 15 minutes."
+  }'
+```
+
+```bash POST /groups/:id/messages
+curl -X POST "https://wareply.indexai.co.zw/api/v1/groups/120363041234567890@g.us/messages" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: grp-shift-announcement-2" \
+  -d '{
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "text": "Daily logistics summary report attached.",
+    "asset_id": "ast_01h8a9b2c3d4e5f6"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch("https://wareply.indexai.co.zw/api/v1/groups/messages", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json",
+    "Idempotency-Key": "grp-msg-123"
+  },
+  body: JSON.stringify({
+    account_id: "acc_01hy8z9q2w4e1234",
+    group_id: "120363041234567890@g.us",
+    text: "Shift briefing at 09:00 AM."
+  })
+});
+
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+payload = {
+    "account_id": "acc_01hy8z9q2w4e1234",
+    "group_id": "120363041234567890@g.us",
+    "text": "Shift briefing at 09:00 AM."
+}
+
+response = requests.post(
+    "https://wareply.indexai.co.zw/api/v1/groups/messages",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "grp-msg-123"
+    },
+    json=payload
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  The group message dispatch record.
+
+  <Expandable title="data properties">
+    <ResponseField name="id" type="string" required>
+      Stable group message operation ID (e.g. `msg_grp_01hy8z9q2w4e1234`).
+    </ResponseField>
+    <ResponseField name="account_id" type="string" required>
+      UUID of the WhatsApp account that dispatched the group message.
+    </ResponseField>
+    <ResponseField name="group_id" type="string" required>
+      Destination WhatsApp group JID (`...@g.us`).
+    </ResponseField>
+    <ResponseField name="type" type="string" required>
+      Payload type (`text` or `media`).
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      Terminal send state: `sent`. Indicates transmission to and acknowledgement by WhatsApp servers.
+    </ResponseField>
+    <ResponseField name="external_message_id" type="string | null" required>
+      Confirmed WhatsApp message ID returned by WhatsApp servers.
+    </ResponseField>
+    <ResponseField name="created_at" type="string" required>
+      ISO 8601 creation timestamp.
+    </ResponseField>
+    <ResponseField name="sent_at" type="string | null" required>
+      ISO 8601 acknowledgment timestamp.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "id": "msg_grp_01hy8z9q2w4e1234",
+    "account_id": "acc_01hy8z9q2w4e",
+    "accountId": "acc_01hy8z9q2w4e",
+    "group_id": "120363041234567890@g.us",
+    "groupId": "120363041234567890@g.us",
+    "group_jid": "120363041234567890@g.us",
+    "groupJid": "120363041234567890@g.us",
+    "type": "text",
+    "status": "sent",
+    "external_message_id": "3EB0ABCDEF1234567890",
+    "externalMessageId": "3EB0ABCDEF1234567890",
+    "created_at": "2026-09-13T03:50:00.000Z",
+    "createdAt": "2026-09-13T03:50:00.000Z",
+    "sent_at": "2026-09-13T03:50:01.250Z",
+    "sentAt": "2026-09-13T03:50:01.250Z"
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_recipient` | Group JID does not end in `@g.us` or contains invalid characters. |
+| `400` | `invalid_request` | Missing `group_id`, empty text without asset, or prohibited anti-abuse controls. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `groups:write`. |
+| `403` | `quota_exceeded` | Monthly broadcast message quota exceeded. |
+| `404` | `not_found` | Account not found in this workspace. |
+| `404` | `account_unavailable` | Account is disconnected or initializing. |
+| `502` | `message_failed` | Delivery failed upstream. Quota is refunded automatically. |

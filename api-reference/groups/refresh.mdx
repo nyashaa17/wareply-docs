@@ -1,0 +1,143 @@
+---
+title: "Refresh Groups Cache"
+description: "Trigger a live synchronization of WhatsApp groups from the WhatsApp network"
+---
+
+The `POST /api/v1/groups/refresh` endpoint triggers an explicit live synchronization between the WhatsApp worker and WhatsApp's servers to update the local cached snapshot of groups.
+
+Use this endpoint when your account has recently been added to or removed from groups, or when group subjects have changed.
+
+### Authentication & Permissions
+
+- **Method**: `POST`
+- **Path**: `/api/v1/groups/refresh`
+- **Required Scope**: `groups:read`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `Content-Type: application/json` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Request Parameters
+
+<ParamField body="account_id" type="string" required>
+  The UUID of the WhatsApp account whose groups should be synchronized (e.g. `acc_01hy8z9q2w4e1234`). Can alternatively be passed as a query parameter (`?account_id=...`).
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://wareply.indexai.co.zw/api/v1/groups/refresh" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_id": "acc_01hy8z9q2w4e1234"
+  }'
+```
+
+```javascript Node.js
+const response = await fetch("https://wareply.indexai.co.zw/api/v1/groups/refresh", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    account_id: "acc_01hy8z9q2w4e1234"
+  })
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://wareply.indexai.co.zw/api/v1/groups/refresh",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    },
+    json={"account_id": "acc_01hy8z9q2w4e1234"}
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  Synchronization result.
+
+  <Expandable title="data properties">
+    <ResponseField name="refreshed" type="boolean" required>
+      Indicates whether the synchronization completed successfully.
+    </ResponseField>
+    <ResponseField name="count" type="integer" required>
+      Total number of groups synchronized into the local cache.
+    </ResponseField>
+    <ResponseField name="groups" type="array of objects" required>
+      Full list of synchronized groups.
+      
+      <Expandable title="group properties">
+        <ResponseField name="id" type="string" required>
+          The WhatsApp group JID (`...@g.us`).
+        </ResponseField>
+        <ResponseField name="name" type="string" required>
+          Group subject/name.
+        </ResponseField>
+        <ResponseField name="participantCount" type="integer" required>
+          Number of members in the group.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "refreshed": true,
+    "count": 2,
+    "groups": [
+      {
+        "id": "120363041234567890@g.us",
+        "name": "Regional Logistics Hub",
+        "participantCount": 42
+      },
+      {
+        "id": "120363049876543210@g.us",
+        "name": "Warehouse Operations Tier 1",
+        "participantCount": 18
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | `account_id` parameter is missing. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `groups:read`. |
+| `404` | `not_found` | Account not found in this workspace. |
+| `404` | `account_unavailable` | Account is disconnected or initializing. |

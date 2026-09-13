@@ -1,0 +1,168 @@
+---
+title: "List Channels"
+description: "Retrieve a paginated list of WhatsApp channels and newsletters associated with the account"
+---
+
+The `GET /api/v1/channels` endpoint returns a paginated list of WhatsApp Channels (newsletters) associated with the specified WhatsApp account.
+
+This endpoint is **cache-first**: it queries the local database snapshot. To pull fresh channel information from WhatsApp servers, call [POST /api/v1/channels/refresh](/api-reference/channels/refresh).
+
+### Authentication & Permissions
+
+- **Method**: `GET`
+- **Path**: `/api/v1/channels`
+- **Required Scope**: `channels:read`
+- **Headers**:
+  - `Authorization: Bearer YOUR_API_KEY` (required)
+  - `X-Request-ID: <string>` (optional client trace ID)
+
+---
+
+## Query Parameters
+
+<ParamField query="account_id" type="string" required>
+  The UUID of the WhatsApp account whose channels you want to list (e.g. `acc_01hy8z9q2w4e1234`).
+</ParamField>
+
+<ParamField query="search" type="string">
+  Optional search filter matching against channel names.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="50">
+  Maximum number of channels to return (between 1 and 100).
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Number of records to skip for pagination.
+</ParamField>
+
+---
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://wareply.indexai.co.zw/api/v1/channels?account_id=acc_01hy8z9q2w4e1234&limit=20" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/json"
+```
+
+```javascript Node.js
+const accountId = "acc_01hy8z9q2w4e1234";
+
+const response = await fetch(`https://wareply.indexai.co.zw/api/v1/channels?account_id=${accountId}&limit=20`, {
+  headers: {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Accept": "application/json"
+  }
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "https://wareply.indexai.co.zw/api/v1/channels",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Accept": "application/json"
+    },
+    params={
+        "account_id": "acc_01hy8z9q2w4e1234",
+        "limit": 20
+    }
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Response Attributes
+
+<ResponseField name="data" type="object" required>
+  Envelope containing channel items and pagination context.
+
+  <Expandable title="data properties">
+    <ResponseField name="channels" type="array of objects" required>
+      List of WhatsApp channels.
+      
+      <Expandable title="channel object properties">
+        <ResponseField name="id" type="string" required>
+          The canonical WhatsApp channel JID (`...@newsletter`).
+        </ResponseField>
+        <ResponseField name="name" type="string" required>
+          Channel public title.
+        </ResponseField>
+        <ResponseField name="description" type="string | null" required>
+          Public channel description.
+        </ResponseField>
+        <ResponseField name="role" type="string" required>
+          The account's role in the channel (`owner`, `admin`, or `subscriber`). Only owners and admins can publish updates.
+        </ResponseField>
+        <ResponseField name="subscriberCount" type="integer | null" required>
+          Number of subscribers, if reported by WhatsApp.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="pagination" type="object" required>
+      Pagination context.
+
+      <Expandable title="pagination properties">
+        <ResponseField name="limit" type="integer" required>
+          Applied limit.
+        </ResponseField>
+        <ResponseField name="offset" type="integer" required>
+          Applied offset.
+        </ResponseField>
+        <ResponseField name="total" type="integer" required>
+          Total number of channels matching the query.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Response Example (HTTP 200)
+
+```json
+{
+  "data": {
+    "channels": [
+      {
+        "id": "120363049876543210@newsletter",
+        "name": "Acme Logistics Announcements",
+        "description": "Official company announcements and shipping updates.",
+        "role": "owner",
+        "subscriberCount": 1540
+      }
+    ],
+    "pagination": {
+      "limit": 20,
+      "offset": 0,
+      "total": 1
+    }
+  }
+}
+```
+
+---
+
+## Common Errors
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `invalid_request` | `account_id` query parameter is missing. |
+| `401` | `unauthorized` | Missing or invalid API key. |
+| `403` | `insufficient_scope` | API key lacks `channels:read`. |
+| `403` | `account_access_denied` | Key whitelist does not include this `account_id`. |
+| `404` | `not_found` | Account not found in this workspace. |
