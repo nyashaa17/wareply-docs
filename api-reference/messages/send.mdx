@@ -63,7 +63,7 @@ The `POST /api/v1/messages/send` endpoint sends a direct, 1-to-1 WhatsApp messag
 <CodeGroup>
 
 ```bash Text Message
-curl -X POST "https://wareply.indexai.co.zw/api/v1/messages/send" \
+curl -X POST "https://wareply.co.zw/api/v1/messages/send" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: ord-10023-alert" \
@@ -75,7 +75,7 @@ curl -X POST "https://wareply.indexai.co.zw/api/v1/messages/send" \
 ```
 
 ```bash Media Attachment
-curl -X POST "https://wareply.indexai.co.zw/api/v1/messages/send" \
+curl -X POST "https://wareply.co.zw/api/v1/messages/send" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: inv-5542-send" \
@@ -89,7 +89,7 @@ curl -X POST "https://wareply.indexai.co.zw/api/v1/messages/send" \
 ```
 
 ```javascript Node.js
-const response = await fetch("https://wareply.indexai.co.zw/api/v1/messages/send", {
+const response = await fetch("https://wareply.co.zw/api/v1/messages/send", {
   method: "POST",
   headers: {
     "Authorization": "Bearer YOUR_API_KEY",
@@ -117,7 +117,7 @@ payload = {
 }
 
 response = requests.post(
-    "https://wareply.indexai.co.zw/api/v1/messages/send",
+    "https://wareply.co.zw/api/v1/messages/send",
     headers={
         "Authorization": "Bearer YOUR_API_KEY",
         "Content-Type": "application/json",

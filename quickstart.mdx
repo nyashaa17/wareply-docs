@@ -19,7 +19,7 @@ Before calling the API, ensure you have:
 
 API keys are created and managed directly in the Wareply Dashboard:
 
-1. Log in to your [Wareply Dashboard](https://wareply.indexai.co.zw).
+1. Log in to your [Wareply Dashboard](https://wareply.co.zw).
 2. Navigate to **Settings** (`/settings`) from the main sidebar.
 3. Scroll to the **Developer API Keys** section.
 4. Click **Create Key**. Enter a descriptive name (for example, `Production Backend`) and select the required scopes (for example, `messages:send` and `messages:read`).
@@ -49,7 +49,7 @@ Verify your authentication, tenant workspace, and granted scopes by calling the 
 <CodeGroup>
 
 ```bash cURL
-curl -X GET "https://wareply.indexai.co.zw/api/v1/me" \
+curl -X GET "https://wareply.co.zw/api/v1/me" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Accept: application/json"
 ```
@@ -57,7 +57,7 @@ curl -X GET "https://wareply.indexai.co.zw/api/v1/me" \
 ```javascript Node.js
 const apiKey = "YOUR_API_KEY";
 
-const response = await fetch("https://wareply.indexai.co.zw/api/v1/me", {
+const response = await fetch("https://wareply.co.zw/api/v1/me", {
   method: "GET",
   headers: {
     "Authorization": `Bearer ${apiKey}`,
@@ -75,7 +75,7 @@ import requests
 api_key = "YOUR_API_KEY"
 
 response = requests.get(
-    "https://wareply.indexai.co.zw/api/v1/me",
+    "https://wareply.co.zw/api/v1/me",
     headers={
         "Authorization": f"Bearer {api_key}",
         "Accept": "application/json"
@@ -128,7 +128,7 @@ Dispatch a text message using `POST /api/v1/messages/send`. Provide the recipien
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://wareply.indexai.co.zw/api/v1/messages/send" \
+curl -X POST "https://wareply.co.zw/api/v1/messages/send" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -141,7 +141,7 @@ curl -X POST "https://wareply.indexai.co.zw/api/v1/messages/send" \
 ```javascript Node.js
 const apiKey = "YOUR_API_KEY";
 
-const response = await fetch("https://wareply.indexai.co.zw/api/v1/messages/send", {
+const response = await fetch("https://wareply.co.zw/api/v1/messages/send", {
   method: "POST",
   headers: {
     "Authorization": `Bearer ${apiKey}`,
@@ -170,7 +170,7 @@ payload = {
 }
 
 response = requests.post(
-    "https://wareply.indexai.co.zw/api/v1/messages/send",
+    "https://wareply.co.zw/api/v1/messages/send",
     headers={
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
@@ -213,7 +213,7 @@ Retrieve the persistent record and metadata of any direct message using its oper
 <CodeGroup>
 
 ```bash cURL
-curl -X GET "https://wareply.indexai.co.zw/api/v1/messages/msg_01hy8z9q2w4e1234" \
+curl -X GET "https://wareply.co.zw/api/v1/messages/msg_01hy8z9q2w4e1234" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Accept: application/json"
 ```
@@ -221,7 +221,7 @@ curl -X GET "https://wareply.indexai.co.zw/api/v1/messages/msg_01hy8z9q2w4e1234"
 ```javascript Node.js
 const messageId = "msg_01hy8z9q2w4e1234";
 
-const response = await fetch(`https://wareply.indexai.co.zw/api/v1/messages/${messageId}`, {
+const response = await fetch(`https://wareply.co.zw/api/v1/messages/${messageId}`, {
   headers: {
     "Authorization": "Bearer YOUR_API_KEY",
     "Accept": "application/json"
@@ -238,7 +238,7 @@ import requests
 message_id = "msg_01hy8z9q2w4e1234"
 
 response = requests.get(
-    f"https://wareply.indexai.co.zw/api/v1/messages/{message_id}",
+    f"https://wareply.co.zw/api/v1/messages/{message_id}",
     headers={
         "Authorization": "Bearer YOUR_API_KEY",
         "Accept": "application/json"

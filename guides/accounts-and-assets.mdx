@@ -13,12 +13,12 @@ Every message, group query, channel update, and broadcast campaign requires an `
 
 There is no public `GET /api/v1/accounts` endpoint. To find your WhatsApp account UUID:
 
-1. Log in to the [Wareply Dashboard](https://wareply.indexai.co.zw).
+1. Log in to the [Wareply Dashboard](https://wareply.co.zw).
 2. Go to **Accounts** (`/accounts`) in the main navigation.
 3. Click on the WhatsApp account you wish to use.
 4. The account UUID is displayed on the account overview card and in the browser URL bar:
    ```
-   https://wareply.indexai.co.zw/accounts/acc_01hy8z9q2w4e1234
+   https://wareply.co.zw/accounts/acc_01hy8z9q2w4e1234
    ```
 5. Copy the account ID (e.g., `acc_01hy8z9q2w4e1234` or standard UUID format) to use as your `account_id`.
 
@@ -75,7 +75,7 @@ When dispatching a media message, provide the `asset_id` and optional `caption`.
 ### Example: Direct Message with Attachment
 
 ```bash
-curl -X POST "https://wareply.indexai.co.zw/api/v1/messages/send" \
+curl -X POST "https://wareply.co.zw/api/v1/messages/send" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
