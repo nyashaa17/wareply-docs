@@ -102,11 +102,14 @@ print(response.json())
     "success": true,
     "id": "bc_01hy8z9q2w4e1234",
     "status": "cancelled",
-    "refunded_units": 500,
-    "refundedUnits": 500
+    "refunded_units": 500
   }
 }
 ```
+
+<Note>
+**Backwards Compatibility**: The server also returns deprecated `refundedUnits` alongside canonical `refunded_units`.
+</Note>
 
 ---
 

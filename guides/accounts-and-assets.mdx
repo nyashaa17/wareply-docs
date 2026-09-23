@@ -9,9 +9,21 @@ The Wareply Developer API interacts with the WhatsApp accounts and media assets 
 
 Every message, group query, channel update, and broadcast campaign requires an `account_id` parameter. This UUID specifies which connected WhatsApp instance will transmit the message.
 
-### Finding Your Account ID
+### Discovering Your Account ID
 
-There is no public `GET /api/v1/accounts` endpoint. To find your WhatsApp account UUID:
+You can discover your WhatsApp account UUID programmatically or via the dashboard:
+
+#### 1. Programmatic Discovery (`GET /api/v1/accounts`)
+
+Call the [`GET /api/v1/accounts`](/api-reference/accounts/list) endpoint (requires `accounts:read` scope) to retrieve all accessible accounts, their statuses, and connected phone numbers:
+
+```bash
+curl -X GET "https://wareply.co.zw/api/v1/accounts" \
+  -H "Authorization: Bearer wrp_live_<YOUR_API_KEY>" \
+  -H "Accept: application/json"
+```
+
+#### 2. Manual Lookup in Dashboard
 
 1. Log in to the [Wareply Dashboard](https://wareply.co.zw).
 2. Go to **Accounts** (`/accounts`) in the main navigation.
@@ -20,15 +32,15 @@ There is no public `GET /api/v1/accounts` endpoint. To find your WhatsApp accoun
    ```
    https://wareply.co.zw/accounts/acc_01hy8z9q2w4e1234
    ```
-5. Copy the account ID (e.g., `acc_01hy8z9q2w4e1234` or standard UUID format) to use as your `account_id`.
+5. Copy the account ID (e.g., `acc_01hy8z9q2w4e1234`) to use as your `account_id`.
 
 ### Account Status & Tenancy Requirements
 
 For an `account_id` to accept API operations:
 
 1. **Workspace Tenancy**: The account must belong to the workspace associated with your API key. If you pass an account ID from another workspace, the API returns HTTP 404 `not_found`.
-2. **API Key Restrictions**: If your API key was configured with an account whitelist (`accountRestrictions`), the `account_id` must be in that list. Otherwise, the API returns HTTP 403 `account_access_denied`.
-3. **Operational State**: The account must be connected and in the `ready` state. If the WhatsApp account is disconnected or initializing, the API returns HTTP 404 `account_unavailable`.
+2. **API Key Restrictions**: If your API key was configured with an account whitelist (`account_restrictions`), the `account_id` must be in that list. Otherwise, the API returns HTTP 403 `account_access_denied`.
+3. **Operational State**: The account must be connected and in the `ready` or `active` state. If the WhatsApp account is disconnected or initializing, the API returns HTTP 404 `account_unavailable`.
 
 ---
 
@@ -61,10 +73,13 @@ Wareply validates all media attachments against strict MIME type rules and file 
 
 | Category | Supported MIME Types | Extensions | Maximum File Size |
 | :--- | :--- | :--- | :--- |
-| **Images** | `image/jpeg`, `image/png`, `image/webp` | `.jpg`, `.jpeg`, `.png`, `.webp` | 16 MB |
-| **Documents** | `application/pdf`, Microsoft Office formats (`.docx`, `.xlsx`, `.pptx`), `text/plain`, `application/zip` | `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.txt` | 100 MB |
-| **Audio** | `audio/mp4`, `audio/mpeg`, `audio/ogg`, `audio/opus` | `.mp3`, `.m4a`, `.ogg`, `.opus` | 16 MB |
-| **Video** | `video/mp4`, `video/3gpp` | `.mp4`, `.3gp` | 16 MB |
+| **Images** | `image/jpeg`, `image/png`, `image/webp`, `image/gif` | `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif` | 5 MB |
+| **Videos** | `video/mp4`, `video/3gpp`, `video/quicktime`, `video/webm` | `.mp4`, `.3gp`, `.mov`, `.webm` | 16 MB |
+| **Documents** | `application/pdf`, Microsoft Office formats (`.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`), `text/plain`, `application/zip` | `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.txt`, `.zip` | 25 MB |
+
+<Note>
+**Audio Not Supported**: Audio files (e.g., MP3, AAC, OGG, Opus) are not supported for media asset upload or message dispatch. Attachments must be categorized as Images, Videos, or Documents.
+</Note>
 
 ---
 
@@ -76,7 +91,7 @@ When dispatching a media message, provide the `asset_id` and optional `caption`.
 
 ```bash
 curl -X POST "https://wareply.co.zw/api/v1/messages/send" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer wrp_live_<YOUR_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{
     "account_id": "YOUR_ACCOUNT_ID",

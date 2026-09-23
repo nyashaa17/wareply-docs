@@ -9,7 +9,7 @@ This guide walks you through authenticating your API key, verifying your workspa
 
 Before calling the API, ensure you have:
 
-1. **A Wareply Account on an eligible plan**: Developer API access is included in Standard, Pro, and Enterprise plans. Workspaces on the Free tier cannot authenticate against Developer API endpoints and will receive a `403 plan_upgrade_required` error.
+1. **A Wareply Account on an eligible plan**: Free includes 500 Dashboard messages per month. Developer API access requires Standard or higher. Workspaces on the Free tier cannot authenticate against Developer API endpoints and will receive a `403 plan_upgrade_required` error.
 2. **A Connected WhatsApp Account**: At least one WhatsApp phone number connected and in the `ready` state within your Wareply workspace.
 3. **An API Key**: Generated from your Wareply Dashboard.
 
@@ -22,7 +22,7 @@ API keys are created and managed directly in the Wareply Dashboard:
 1. Log in to your [Wareply Dashboard](https://wareply.co.zw).
 2. Navigate to **Settings** (`/settings`) from the main sidebar.
 3. Scroll to the **Developer API Keys** section.
-4. Click **Create Key**. Enter a descriptive name (for example, `Production Backend`) and select the required scopes (for example, `messages:send` and `messages:read`).
+4. Click **Create Key**. Enter a descriptive name (for example, `Production Backend`) and select the required scopes (for example, `accounts:read`, `messages:send`, and `messages:read`).
 5. Copy the generated secret key (`wrp_live_...`) immediately. 
 
 <Warning>
@@ -33,12 +33,11 @@ The full plaintext key is displayed only once at creation or rotation. If mispla
 
 ## Step 2: Locate Your WhatsApp Account ID
 
-The Developer API does not expose a public account listing endpoint. Instead, locate the unique Account UUID in your dashboard:
+You can discover accessible WhatsApp accounts programmatically or through the Wareply Dashboard:
 
-1. Navigate to **Accounts** (`/accounts`) in your Wareply Dashboard.
-2. Select the WhatsApp account you want to send messages from.
-3. In the account overview or URL bar, locate the account UUID (for example, `acc_01hy8z9q2w4e` or `7b189d2e-5f3a-4e2b-9871-abcdef123456`).
-4. Keep this identifier available as your `account_id`.
+1. **Programmatic Discovery**: Call [`GET /api/v1/accounts`](/api-reference/accounts/list) (requires `accounts:read` scope) to inspect connected account IDs, display names, and phone numbers.
+2. **Dashboard Lookup**: Navigate to **Accounts** (`/accounts`) in your Wareply Dashboard, select your account, and copy the unique account UUID from the card or URL bar (for example, `acc_01hy8z9q2w4e1234`).
+3. Keep this identifier available as your `account_id`.
 
 ---
 
@@ -50,12 +49,12 @@ Verify your authentication, tenant workspace, and granted scopes by calling the 
 
 ```bash cURL
 curl -X GET "https://wareply.co.zw/api/v1/me" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer wrp_live_<YOUR_API_KEY>" \
   -H "Accept: application/json"
 ```
 
 ```javascript Node.js
-const apiKey = "YOUR_API_KEY";
+const apiKey = "wrp_live_<YOUR_API_KEY>";
 
 const response = await fetch("https://wareply.co.zw/api/v1/me", {
   method: "GET",
@@ -72,7 +71,7 @@ console.log(data);
 ```python Python
 import requests
 
-api_key = "YOUR_API_KEY"
+api_key = "wrp_live_<YOUR_API_KEY>"
 
 response = requests.get(
     "https://wareply.co.zw/api/v1/me",
@@ -92,17 +91,18 @@ print(response.json())
 ```json
 {
   "data": {
-    "apiKey": {
+    "api_key": {
       "id": "key_01h8a9b2c3d4e5f6",
       "name": "Production Backend",
-      "keyPrefix": "wrp_live_abcd",
+      "key_prefix": "wrp_live_abcd",
       "scopes": [
+        "accounts:read",
         "messages:send",
         "messages:read"
       ],
-      "accountRestrictions": null,
-      "createdAt": "2026-09-10T08:00:00.000Z",
-      "expiresAt": null
+      "account_restrictions": null,
+      "created_at": "2026-09-10T08:00:00.000Z",
+      "expires_at": null
     },
     "workspace": {
       "id": "ws_01h8a9b2c3d4e5f6",
@@ -117,6 +117,10 @@ print(response.json())
 }
 ```
 
+<Note>
+The server also emits deprecated camelCase aliases (`apiKey`, `keyPrefix`, `accountRestrictions`, `createdAt`, `expiresAt`) for backward compatibility with existing clients.
+</Note>
+
 If the response returns HTTP 200, your credentials, workspace association, and plan entitlements are valid.
 
 ---
@@ -129,7 +133,7 @@ Dispatch a text message using `POST /api/v1/messages/send`. Provide the recipien
 
 ```bash cURL
 curl -X POST "https://wareply.co.zw/api/v1/messages/send" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer wrp_live_<YOUR_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{
     "account_id": "YOUR_ACCOUNT_ID",
@@ -139,7 +143,7 @@ curl -X POST "https://wareply.co.zw/api/v1/messages/send" \
 ```
 
 ```javascript Node.js
-const apiKey = "YOUR_API_KEY";
+const apiKey = "wrp_live_<YOUR_API_KEY>";
 
 const response = await fetch("https://wareply.co.zw/api/v1/messages/send", {
   method: "POST",
@@ -161,7 +165,7 @@ console.log(result);
 ```python Python
 import requests
 
-api_key = "YOUR_API_KEY"
+api_key = "wrp_live_<YOUR_API_KEY>"
 
 payload = {
     "account_id": "YOUR_ACCOUNT_ID",
@@ -189,20 +193,20 @@ print(response.json())
 {
   "data": {
     "id": "msg_01hy8z9q2w4e1234",
-    "account_id": "YOUR_ACCOUNT_ID",
-    "accountId": "YOUR_ACCOUNT_ID",
+    "account_id": "acc_01hy8z9q2w4e1234",
     "to": "+263782092900",
     "type": "text",
     "status": "sent",
     "external_message_id": "3EB0ABCDEF1234567890",
-    "externalMessageId": "3EB0ABCDEF1234567890",
     "created_at": "2026-09-13T03:50:00.000Z",
-    "createdAt": "2026-09-13T03:50:00.000Z",
-    "sent_at": "2026-09-13T03:50:01.250Z",
-    "sentAt": "2026-09-13T03:50:01.250Z"
+    "sent_at": "2026-09-13T03:50:01.250Z"
   }
 }
 ```
+
+<Note>
+**Naming Convention**: `snake_case` properties (`account_id`, `external_message_id`, `created_at`, `sent_at`) are canonical. The API also returns deprecated camelCase aliases (`accountId`, `externalMessageId`, `createdAt`, `sentAt`) for backwards compatibility.
+</Note>
 
 ---
 
@@ -214,7 +218,7 @@ Retrieve the persistent record and metadata of any direct message using its oper
 
 ```bash cURL
 curl -X GET "https://wareply.co.zw/api/v1/messages/msg_01hy8z9q2w4e1234" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer wrp_live_<YOUR_API_KEY>" \
   -H "Accept: application/json"
 ```
 
@@ -223,7 +227,7 @@ const messageId = "msg_01hy8z9q2w4e1234";
 
 const response = await fetch(`https://wareply.co.zw/api/v1/messages/${messageId}`, {
   headers: {
-    "Authorization": "Bearer YOUR_API_KEY",
+    "Authorization": "Bearer wrp_live_<YOUR_API_KEY>",
     "Accept": "application/json"
   }
 });
@@ -240,7 +244,7 @@ message_id = "msg_01hy8z9q2w4e1234"
 response = requests.get(
     f"https://wareply.co.zw/api/v1/messages/{message_id}",
     headers={
-        "Authorization": "Bearer YOUR_API_KEY",
+        "Authorization": "Bearer wrp_live_<YOUR_API_KEY>",
         "Accept": "application/json"
     }
 )
@@ -270,7 +274,7 @@ When the API returns `"status": "sent"`, it confirms that:
 Explore the full capabilities of the Developer API:
 
 - [Authentication & Scopes](/authentication): Deep dive into token lifecycle, compound permissions, and security.
-- [Rate Limits](/rate-limits): Learn about the 60 req/min sliding-window limit and retry headers.
+- [Rate Limits](/rate-limits): Learn about the 60 req/min fixed-window limit and retry headers.
 - [Idempotency](/idempotency): Ensure reliable, safe network retries without duplicate message dispatches.
 - [Group Messaging](/api-reference/groups/send): Broadcast updates to WhatsApp group chats.
 - [Broadcasts & Scheduling](/api-reference/broadcasts/create): Run campaigns to up to 1,000 recipients with automated cancellation and refund protection.

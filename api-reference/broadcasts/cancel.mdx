@@ -121,20 +121,23 @@ print(response.json())
   "data": {
     "id": "bc_01hy8z9q2w4e1234",
     "workspace_id": "ws_01h8a9b2c3d4e5f6",
-    "account_id": "acc_01hy8z9q2w4e",
+    "account_id": "acc_01hy8z9q2w4e1234",
     "name": "Flash Sale Announcement",
-    "target_type": "individual",
+    "target_type": "phone",
     "status": "cancelled",
     "total_targets": 250,
     "sent_count": 50,
     "failed_count": 0,
     "skipped_count": 0,
     "refunded_units": 200,
-    "refundedUnits": 200,
     "completed_at": "2026-09-13T03:52:10.000Z"
   }
 }
 ```
+
+<Note>
+**Backwards Compatibility**: The server also returns deprecated camelCase aliases (`refundedUnits`, `workspaceId`, `accountId`, `totalTargets`, `sentCount`, etc.) alongside canonical `snake_case` properties.
+</Note>
 
 ---
 

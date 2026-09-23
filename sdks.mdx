@@ -1,0 +1,156 @@
+---
+title: "SDKs & Client Generation"
+description: "How to integrate with the Wareply Developer API using standard HTTP libraries or generated typed clients"
+---
+
+The Wareply Developer API is built upon standard REST principles and open web specifications. You can interact with it using any HTTP client in any programming language, or generate strongly-typed SDKs directly from our authoritative OpenAPI specification.
+
+## Canonical REST API
+
+Wareply does not publish or require proprietary wrapper packages on package managers (such as npm, PyPI, or crates.io). Instead, the API is designed to be lightweight, zero-dependency, and intuitive to call using standard, battle-tested HTTP libraries:
+
+<CodeGroup>
+
+```javascript Node.js (Fetch)
+const response = await fetch("https://wareply.co.zw/api/v1/messages/send", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${process.env.WAREPLY_API_KEY}`,
+    "Content-Type": "application/json",
+    "Idempotency-Key": "order_10023_alert"
+  },
+  body: JSON.stringify({
+    account_id: "acc_01hy8z9q2w4e1234",
+    to: "+263782092900",
+    text: "Your order #10023 is ready for collection."
+  })
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python (Requests / Httpx)
+import os
+import requests
+
+response = requests.post(
+    "https://wareply.co.zw/api/v1/messages/send",
+    headers={
+        "Authorization": f"Bearer {os.environ['WAREPLY_API_KEY']}",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "order_10023_alert"
+    },
+    json={
+        "account_id": "acc_01hy8z9q2w4e1234",
+        "to": "+263782092900",
+        "text": "Your order #10023 is ready for collection."
+    }
+)
+
+print(response.json())
+```
+
+```go Go (net/http)
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+)
+
+func main() {
+	payload := map[string]string{
+		"account_id": "acc_01hy8z9q2w4e1234",
+		"to":         "+263782092900",
+		"text":       "Your order #10023 is ready for collection.",
+	}
+	body, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest("POST", "https://wareply.co.zw/api/v1/messages/send", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("WAREPLY_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", "order_10023_alert")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	fmt.Println("Status:", resp.Status)
+}
+```
+
+</CodeGroup>
+
+---
+
+## Canonical OpenAPI 3.1 Specification
+
+Wareply maintains an authoritative OpenAPI 3.1 contract covering all Developer API endpoints, parameters, schemas, and error structures.
+
+The canonical specification is maintained within the Wareply repository:
+
+- **OpenAPI YAML**: `lib/api-spec/openapi.yaml`
+- **OpenAPI JSON**: `lib/api-spec/openapi.json`
+
+---
+
+## Generating Typed Client SDKs
+
+If your team requires fully-typed SDKs with autocompletion and compile-time verification, you can generate client code directly from the OpenAPI specification using industry-standard tools:
+
+### 1. TypeScript & Node.js (OpenAPI Generator)
+
+To generate a TypeScript client using Axios or Fetch from your local copy of `openapi.yaml`:
+
+```bash
+npx @openapitools/openapi-generator-cli generate \
+  -i ./openapi.yaml \
+  -g typescript-axios \
+  -o ./src/wareply-client \
+  --additional-properties=supportsES6=true,npmName=@mycompany/wareply-client
+```
+
+### 2. TypeScript (Orval / React Query)
+
+To generate TypeScript types and lightweight fetch/React Query hooks:
+
+```bash
+npx orval --input ./openapi.yaml --output ./src/generated/wareply.ts --client fetch
+```
+
+### 3. Python (openapi-python-client)
+
+To generate a modern, type-annotated Python client using `httpx` and `pydantic`:
+
+```bash
+pip install openapi-python-client
+openapi-python-client generate --path ./openapi.yaml --output-path ./wareply_client
+```
+
+### 4. Go (oapi-codegen)
+
+To generate typed Go structs and request builders:
+
+```bash
+go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+oapi-codegen -package wareply -generate types,client openapi.yaml > wareply.gen.go
+```
+
+---
+
+## SDK Design Recommendations
+
+When building a wrapper or integrating an automated client:
+
+1. **Automatic Idempotency Key Injection**: Configure your client interceptor to generate a UUID v4 `Idempotency-Key` header on all `POST`, `PUT`, and `DELETE` requests unless explicitly supplied by the caller.
+2. **Handle `Retry-After` on 429**: Implement an interceptor that parses the `Retry-After` header when HTTP 429 is received and retries after the specified sleep duration.
+3. **Correlation Tracking**: Pass client request IDs via the `X-Request-ID` header to correlate calls across your application logs and Wareply support traces.
+4. **Ignore Unknown Fields**: Ensure your JSON deserializer ignores unfamiliar response fields to prevent breaking changes when non-breaking fields are added to `/api/v1`.
+5. **Prefer Canonical `snake_case` Properties**: Code generators will generate typings for both canonical `snake_case` fields and backwards-compatible `camelCase` aliases. Always consume the canonical `snake_case` fields (`phone_number`, `created_at`, `workspace_id`, `account_id`, `refunded_units`). The `camelCase` properties are flagged with `deprecated: true` in OpenAPI and are retained solely for legacy compatibility.

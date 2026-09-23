@@ -6,7 +6,7 @@ description: "Learn how to authenticate requests, manage API keys, and configure
 All requests to the Wareply Developer API must authenticate using Bearer token authentication in the HTTP `Authorization` header.
 
 ```http
-Authorization: Bearer wrp_live_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+Authorization: Bearer wrp_live_<YOUR_API_KEY>
 ```
 
 Requests without an `Authorization` header, with malformed headers, or with revoked keys return an HTTP 401 `unauthorized` error.
@@ -66,7 +66,7 @@ flowchart LR
 Developer API access is a commercial feature:
 
 - **Included Plans**: Standard, Pro, and Enterprise workspaces have full access to the Developer API.
-- **Free Tier**: Workspaces on the Free plan do not include the `api_access` entitlement.
+- **Free Tier**: Free includes 500 Dashboard messages per month. Developer API access requires Standard or higher. Workspaces on the Free plan do not include the `api_access` entitlement.
 
 If an API key is used against a workspace where Developer API access is disabled or where the subscription has lapsed, the API returns:
 
@@ -90,6 +90,7 @@ API keys support fine-grained scopes to enforce the principle of least privilege
 
 | Scope | Description | Permitted Endpoints |
 | :--- | :--- | :--- |
+| `accounts:read` | List and discover accessible connected WhatsApp business accounts | [`GET /accounts`](/api-reference/accounts/list) |
 | `messages:send` | Send direct 1-to-1 messages | `POST /messages/send` |
 | `messages:read` | Read direct message status | `GET /messages/:id` |
 | `groups:read` | List groups, fetch group details, refresh group cache, read group messages | `GET /groups`, `GET /groups/:id`, `POST /groups/refresh`, `GET /groups/messages/:id` |

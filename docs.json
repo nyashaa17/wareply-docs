@@ -29,7 +29,10 @@
           "authentication",
           "rate-limits",
           "errors",
-          "idempotency"
+          "idempotency",
+          "versioning",
+          "sdks",
+          "changelog"
         ]
       },
       {
@@ -37,6 +40,12 @@
         "pages": [
           "guides/messaging",
           "guides/accounts-and-assets"
+        ]
+      },
+      {
+        "group": "Accounts",
+        "pages": [
+          "api-reference/accounts/list"
         ]
       },
       {

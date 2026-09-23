@@ -95,11 +95,15 @@ print(response.json())
     <ResponseField name="role" type="string" required>
       Account relationship to the channel (`owner`, `admin`, or `subscriber`).
     </ResponseField>
-    <ResponseField name="subscriberCount" type="integer | null" required>
+    <ResponseField name="subscriber_count" type="integer | null" required>
       Total subscribers.
     </ResponseField>
   </Expandable>
 </ResponseField>
+
+<Note>
+**Backwards Compatibility**: The server also returns deprecated `subscriberCount` alongside canonical `subscriber_count`.
+</Note>
 
 ---
 
@@ -112,7 +116,7 @@ print(response.json())
     "name": "Acme Logistics Announcements",
     "description": "Official company announcements and shipping updates.",
     "role": "owner",
-    "subscriberCount": 1540
+    "subscriber_count": 1540
   }
 }
 ```

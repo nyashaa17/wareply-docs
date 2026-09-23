@@ -1,0 +1,92 @@
+---
+title: "Changelog"
+description: "Historical progression, API contract enhancements, and release notes for the Wareply Developer API"
+---
+
+This page provides an authoritative record of changes, contract enhancements, schema normalizations, and fixes applied to the Wareply Developer API (`/api/v1`).
+
+---
+
+## September 19, 2026 — Developer API Contract & Discovery Hardening
+
+This release records the Developer API contract hardening, schema normalization, and account discovery additions completed on September 19, 2026 in response to external developer review feedback. All changes maintain strict backward compatibility within the `/api/v1` namespace.
+
+### New Endpoints
+
+- **`GET /api/v1/accounts` (Account Discovery)**:
+  - Added programmatic discovery endpoint for connected WhatsApp business accounts.
+  - Requires `accounts:read` scope.
+  - Honors workspace tenancy isolation and API key `account_restrictions` whitelists.
+  - Supports query filters: `status`, `search` (case-insensitive across name and phone number), `limit`, and `offset`.
+  - Implements safe Data Transfer Object (DTO) scrub to prevent internal filesystem path or worker port leaks.
+
+### Contract Canonicalization & Normalization
+
+- **Response Schema Normalization (`snake_case`)**:
+  - Standardized all top-level and nested response fields across `/api/v1` to canonical `snake_case` (e.g. `api_key`, `key_prefix`, `account_restrictions`, `created_at`, `workspace_id`, `account_id`, `message_id`, `refunded_units`).
+  - Retained backwards-compatible `camelCase` aliases (`apiKey`, `keyPrefix`, `createdAt`, `workspaceId`, `refundedUnits`, etc.) marked as deprecated.
+  - Normalized `GET /api/v1/me` to emit canonical `api_key` object with `key_prefix`, `account_restrictions`, `created_at`, and `expires_at`.
+  - Normalized template responses across `createTemplate`, `getTemplateById`, `listTemplates`, and `updateTemplate` to emit canonical `workspace_id`, `account_id`, `api_key_id`, `created_at`, and `updated_at`.
+  - Normalized `POST /api/v1/test-idempotency` to emit canonical `message_id` alongside `messageId`.
+
+- **Idempotency Key Limit Canonicalization**:
+  - Resolved documentation contradiction between 128 and 255 characters.
+  - Authoritative canonical limit is **255 characters**, matching database check constraints (`char_length <= 255`) and server validation middleware.
+  - Keys exceeding 255 characters return HTTP 400 `invalid_request` with message `"Idempotency-Key must not exceed 255 characters."`.
+
+- **Rate Limiting Specification**:
+  - Corrected algorithm documentation from "Sliding Token-Bucket Window" to **Fixed-Window Counter** (60 requests per 60-second fixed window per API key).
+  - Clarified architectural distinction between HTTP rate limiting (60 requests/minute) and monthly operational messaging quota (e.g. Standard 5,000 / Pro 15,000 messages/month).
+
+- **Media Storage & Attachment Matrix Alignment**:
+  - Validated and documented server-enforced file size limits:
+    - **Images**: 5 MB (`image/jpeg`, `image/png`, `image/webp`, `image/gif`).
+    - **Videos**: 16 MB (`video/mp4`, `video/3gpp`, `video/quicktime`, `video/webm`).
+    - **Documents**: 25 MB (`application/pdf`, Microsoft Office `.doc`/`.docx`/`.xls`/`.xlsx`/`.ppt`/`.pptx`, `text/plain`, `application/zip`).
+  - Removed unsupported Audio from media documentation (audio uploads are not supported by the asset pipeline or messaging API).
+  - Aligned file extensions to include `.zip` and `.pptx`.
+
+- **Message Type Input Normalization**:
+  - `POST /api/v1/messages/send` accepts input message types `text`, `media`, `image`, `video`, and `document`.
+  - The messaging engine normalizes `image`, `video`, and `document` into `media` for database persistence and response payloads (`type: "media"`).
+
+- **Commercial Plan Entitlement Wording**:
+  - Clarified that the Free tier includes 500 Dashboard messages per month for interactive use.
+  - Programmatic Developer API access requires a Standard, Pro, or Enterprise subscription.
+  - Free tier API calls are rejected with HTTP 403 `plan_upgrade_required`.
+
+- **OpenAPI 3.1 Specification**:
+  - Maintained comprehensive, authoritative OpenAPI 3.1 specification (`lib/api-spec/openapi.yaml` and `lib/api-spec/openapi.json`) covering all 30 operations across 9 domains.
+  - Added honest SDK guidance and code generator recipes for TypeScript, Python, and Go.
+
+- **Webhooks & Inbound Events Boundary**:
+  - Documented explicit platform boundary: the Developer API operates on a REST request/response and polling model. Outbound developer webhooks and inbound event subscriptions are not supported on `/api/v1`.
+
+---
+
+## Earlier Milestones
+
+### Phase F6 — Media Storage & Security Hardening
+- Secured dashboard media storage pipelines with workspace isolation.
+- Enforced MIME validation and size limits (5 MB image, 16 MB video, 25 MB document).
+
+### Phase F3 — Broadcasts & Message Templates
+- Introduced multi-recipient broadcast campaigns (up to 1,000 targets) with atomic quota hold and refund on cancel.
+- Added reusable template management with dynamic `{{variable}}` extraction.
+- Added scheduled broadcast campaigns with 100% quota refund upon cancellation.
+
+### Phase F2 — WhatsApp Groups & Channels
+- Added WhatsApp group listing, metadata inspection, roster cache refresh, and group messaging.
+- Added WhatsApp channel / newsletter listing, cache synchronization, and channel announcement dispatches.
+
+### Phase F1 — Core Messaging & Diagnostics
+- Implemented transactional direct 1-to-1 text and media messaging (`POST /api/v1/messages/send`).
+- Added persistent message delivery tracking (`GET /api/v1/messages/:id`).
+- Implemented distributed idempotency engine with 24-hour replay caching.
+- Added diagnostic idempotency endpoint (`POST /api/v1/test-idempotency`).
+
+### Phase F0 — Platform Foundation
+- Initial `/api/v1` namespace and architectural foundation.
+- Cryptographic Bearer token authentication (`wrp_live_<64-hex>`).
+- Strict multi-tenant isolation derived from API key signature.
+- Rate limiting middleware (60 req/min).

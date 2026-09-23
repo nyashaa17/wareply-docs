@@ -100,7 +100,7 @@ print(response.json())
         <ResponseField name="name" type="string" required>
           The display name or subject of the group.
         </ResponseField>
-        <ResponseField name="participantCount" type="integer" required>
+        <ResponseField name="participant_count" type="integer" required>
           Total number of participants in the group.
         </ResponseField>
       </Expandable>
@@ -124,6 +124,10 @@ print(response.json())
   </Expandable>
 </ResponseField>
 
+<Note>
+**Backwards Compatibility**: The server also returns deprecated `participantCount` alongside canonical `participant_count`.
+</Note>
+
 ---
 
 ## Response Example (HTTP 200)
@@ -135,12 +139,12 @@ print(response.json())
       {
         "id": "120363041234567890@g.us",
         "name": "Regional Logistics Hub",
-        "participantCount": 42
+        "participant_count": 42
       },
       {
         "id": "120363049876543210@g.us",
         "name": "Warehouse Operations Tier 1",
-        "participantCount": 18
+        "participant_count": 18
       }
     ],
     "pagination": {

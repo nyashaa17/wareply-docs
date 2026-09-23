@@ -1,0 +1,4673 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Wareply Developer API",
+    "version": "1.0.0",
+    "description": "Authoritative OpenAPI 3.1 specification for the Wareply Developer API.\n\nThe Wareply Developer API enables programmatic interaction with WhatsApp business accounts\nconnected to your Wareply workspace. Build automations, send notifications, broadcast updates,\nmanage customer messaging workflows, and schedule campaigns across direct messages, groups,\nand channels over connected WhatsApp multi-device sessions.\n\n### Architectural Principles\n- **Bearer Authentication**: Cryptographic API keys (`wrp_live_<64-hex>`) resolved per-request.\n- **Strict Tenant Isolation**: Workspace boundaries and account restrictions are server-enforced.\n- **Rate Limiting**: 60 requests per minute per API key enforced globally across Developer API routes.\n- **Atomic Quota Reservation**: Operational message quota is atomically held before dispatch and refunded on failure.\n- **Distributed Idempotency**: Safe mutation retries with `Idempotency-Key` across a 24-hour retention window.\n- **Anti-Abuse Pacing**: WhatsApp message delivery pacing (minimum 500ms delay) cannot be bypassed.\n- **Standardized Envelopes**: All successful responses return `{ \"data\": ... }` and errors return `{ \"error\": { \"code\", \"message\", \"request_id\" } }`.",
+    "contact": {
+      "name": "Wareply Developer Support",
+      "url": "https://wareply.co.zw"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://wareply.co.zw",
+      "description": "Production API Server"
+    },
+    {
+      "url": "/",
+      "description": "Current Host / Local Proxy"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Identity",
+      "description": "Credential verification, tenant workspace resolution, and commercial plan entitlements"
+    },
+    {
+      "name": "Accounts",
+      "description": "Connected WhatsApp business account discovery, phone number resolution, and status inspection"
+    },
+    {
+      "name": "Direct Messaging",
+      "description": "Transactional 1-to-1 WhatsApp text and media message dispatch and status inspection"
+    },
+    {
+      "name": "Groups",
+      "description": "WhatsApp group roster queries, cache synchronization, and group messaging"
+    },
+    {
+      "name": "Channels",
+      "description": "WhatsApp channel / newsletter listing, metadata, and broadcast publishing"
+    },
+    {
+      "name": "Templates",
+      "description": "Reusable message template creation, dynamic variable extraction, and lifecycle"
+    },
+    {
+      "name": "Broadcasts",
+      "description": "Multi-recipient campaign dispatch (up to 1,000 targets) with quota reservation and safe cancellation"
+    },
+    {
+      "name": "Schedules",
+      "description": "Scheduled broadcast inspection, listing, and cancellation with 100% quota refund"
+    },
+    {
+      "name": "Diagnostics",
+      "description": "Diagnostic idempotency pipeline verification"
+    }
+  ],
+  "paths": {
+    "/api/v1/me": {
+      "get": {
+        "operationId": "getDeveloperMe",
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Verify Developer API credentials and tenancy",
+        "description": "Diagnostic verification endpoint that resolves the authenticated API key, tenant workspace,\ngranted scopes, account restrictions, and commercial subscription tier.\nNever leaks raw secrets, credentials, or internal topology.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Credentials verified and tenancy context returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeveloperMeResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/accounts": {
+      "get": {
+        "operationId": "listDeveloperAccounts",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "List accessible WhatsApp accounts",
+        "description": "Discovers active, connected WhatsApp business accounts accessible to the authenticated API key within the tenant workspace.\nRequires `accounts:read` scope. Supports search, status filtering, and pagination. Never leaks credentials, auth state, or cross-tenant accounts.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter accounts by status (e.g. active, connecting, qr, disconnected)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive search query matching account name or phone number",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of accessible accounts returned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountListResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/messages/send": {
+      "post": {
+        "operationId": "sendDirectMessage",
+        "tags": [
+          "Direct Messaging"
+        ],
+        "summary": "Send a direct WhatsApp message",
+        "description": "Sends a direct 1-to-1 text or media WhatsApp message to a validated recipient phone number\nin international E.164 format through the account's connected WhatsApp session.\nRequires `messages:send` scope and consumes 1 unit of message quota.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Direct message parameters including target account, recipient phone number, and message content",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendDirectMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message accepted and dispatched to WhatsApp engine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendDirectMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          },
+          "502": {
+            "$ref": "#/components/responses/Error502BadGateway"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/api/v1/messages/{id}": {
+      "get": {
+        "operationId": "getDirectMessage",
+        "tags": [
+          "Direct Messaging"
+        ],
+        "summary": "Get direct message operation status",
+        "description": "Retrieves the operational status and delivery metadata of a direct message operation by ID.\nRequires `messages:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique direct message operation ID (e.g. `msg_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Direct message operation status returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendDirectMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/groups": {
+      "get": {
+        "operationId": "listGroups",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List WhatsApp groups",
+        "description": "Cache-first listing of WhatsApp groups accessible to the account.\nReads from cached group snapshot without triggering a WhatsApp socket request. Requires `groups:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": true,
+            "description": "Target WhatsApp account UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Optional search filter matching group name or JID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetQuery"
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of WhatsApp groups returned from cache",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupListResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/refresh": {
+      "post": {
+        "operationId": "refreshGroups",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Refresh WhatsApp groups snapshot",
+        "description": "Explicit refresh operation that triggers synchronization of the group roster from the connected WhatsApp session.\nRequires `groups:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": false,
+            "description": "Target WhatsApp account UUID (can alternatively be provided in request body)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "account_id": {
+                    "type": "string",
+                    "description": "Target WhatsApp account UUID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Fresh group roster synchronized and cached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupRefreshResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/messages/{id}": {
+      "get": {
+        "operationId": "getGroupMessage",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Get group message status",
+        "description": "Retrieves the status and delivery metadata of a group message operation by ID.\nAutomatically executes active reconciliation if the operation was in `dispatch_uncertain` state. Requires `groups:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Group message operation ID (e.g. `msg_grp_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group message operation details returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/messages": {
+      "post": {
+        "operationId": "sendGroupMessage",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Send a message to a WhatsApp group",
+        "description": "Sends a text or media message to a WhatsApp group specified by `group_id` in the request body.\nEnforces WhatsApp delivery pacing and atomic quota reservation. Requires `groups:write` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Group message payload with target account, group JID, and text or media attachment",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendGroupMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message accepted and dispatched to WhatsApp group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          },
+          "502": {
+            "$ref": "#/components/responses/Error502BadGateway"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{id}/messages": {
+      "post": {
+        "operationId": "sendGroupMessageById",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Send a message to a WhatsApp group by path ID",
+        "description": "Sends a text or media message to the WhatsApp group identified in the URL path (`:id`).\nRequires `groups:write` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "WhatsApp group JID (must end in `@g.us`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Group message payload with target account and text or media attachment",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendGroupMessageByPathRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message accepted and dispatched to WhatsApp group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          },
+          "502": {
+            "$ref": "#/components/responses/Error502BadGateway"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{id}": {
+      "get": {
+        "operationId": "getGroup",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Get group metadata",
+        "description": "Retrieves metadata and participant count for a specific WhatsApp group from the cached snapshot.\nRequires `groups:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "WhatsApp group JID (must end in `@g.us`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": true,
+            "description": "Target WhatsApp account UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group metadata returned from cache",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDetailsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/channels": {
+      "get": {
+        "operationId": "listChannels",
+        "tags": [
+          "Channels"
+        ],
+        "summary": "List WhatsApp channels",
+        "description": "Cache-first listing of WhatsApp channels (newsletters) available to the account.\nIncludes role and publisher permission flags (`admin`, `subscriber`). Requires `channels:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": true,
+            "description": "Target WhatsApp account UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Optional search filter matching channel name or JID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetQuery"
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of WhatsApp channels returned from cache",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelListResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/channels/refresh": {
+      "post": {
+        "operationId": "refreshChannels",
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Refresh WhatsApp channels snapshot",
+        "description": "Explicit refresh operation that triggers synchronization of subscribed and managed WhatsApp channels from the worker.\nRequires `channels:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": false,
+            "description": "Target WhatsApp account UUID (can alternatively be provided in body)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "account_id": {
+                    "type": "string",
+                    "description": "Target WhatsApp account UUID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Channel roster refreshed from WhatsApp session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelRefreshResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/channels/messages/{id}": {
+      "get": {
+        "operationId": "getChannelMessage",
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Get channel message status",
+        "description": "Retrieves the status and delivery metadata of a channel update operation by ID.\nAutomatically executes active reconciliation if in `dispatch_uncertain` state. Requires `channels:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Channel message operation ID (e.g. `msg_ch_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel update operation details returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/channels/messages": {
+      "post": {
+        "operationId": "sendChannelMessage",
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Send an update to a WhatsApp channel",
+        "description": "Publishes an announcement or message to a WhatsApp channel specified by `channel_id` in the request body.\nThe connected account must possess publisher privileges (`owner` or `admin`) on the target channel.\nRequires `channels:write` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Channel update payload including target account, channel JID, and text or media attachment",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendChannelMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update accepted and published to WhatsApp channel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          },
+          "502": {
+            "$ref": "#/components/responses/Error502BadGateway"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/api/v1/channels/{id}/messages": {
+      "post": {
+        "operationId": "sendChannelMessageById",
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Send an update to a WhatsApp channel by path ID",
+        "description": "Publishes an announcement or message to the WhatsApp channel specified in the URL path (`:id`).\nThe connected account must possess publisher privileges (`owner` or `admin`). Requires `channels:write` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "WhatsApp channel JID (must end in `@newsletter`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Channel update payload including target account and text or media attachment",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendChannelMessageByPathRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update accepted and published to WhatsApp channel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          },
+          "502": {
+            "$ref": "#/components/responses/Error502BadGateway"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/api/v1/channels/{id}": {
+      "get": {
+        "operationId": "getChannel",
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Get channel metadata",
+        "description": "Retrieves metadata and publisher role for a specific WhatsApp channel from the cached snapshot.\nRequires `channels:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "WhatsApp channel JID (must end in `@newsletter`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": true,
+            "description": "Target WhatsApp account UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel details and publisher role returned from cache",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelDetailsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/test-idempotency": {
+      "post": {
+        "operationId": "testIdempotency",
+        "tags": [
+          "Diagnostics"
+        ],
+        "summary": "Diagnostic idempotency verification",
+        "description": "Diagnostic echo endpoint to verify client idempotency key generation, replay handling, and error branches\nwithout sending WhatsApp messages or deducting quota. Accessible with any valid API key.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Arbitrary test payload to echo back",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Arbitrary JSON payload for idempotency verification"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echo response returned",
+            "headers": {
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/IdempotentReplayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestIdempotencyResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/templates": {
+      "post": {
+        "operationId": "createTemplate",
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Create a message template",
+        "description": "Creates a reusable Wareply message template within your workspace.\nVariable placeholders using `{{variable_name}}` syntax are automatically extracted and indexed in deterministic order.\nRequires `templates:write` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Template definition with name, body text, and optional account scoping",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Template created successfully with extracted variables",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listTemplates",
+        "tags": [
+          "Templates"
+        ],
+        "summary": "List message templates",
+        "description": "Retrieves reusable message templates defined in the workspace with optional account filtering and pagination.\nRequires `templates:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter templates associated with a specific WhatsApp account UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetQuery"
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of message templates returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{id}": {
+      "get": {
+        "operationId": "getTemplate",
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Get message template by ID",
+        "description": "Retrieves a single message template definition including its extracted variables.\nRequires `templates:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Template identifier (`tpl_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template details returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateTemplate",
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Update a message template",
+        "description": "Updates template name and/or body text and dynamically re-extracts variable placeholders.\nHistorical broadcasts retain their immutable rendered content. Requires `templates:write` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Template identifier (`tpl_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Updated template properties",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Template updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTemplate",
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Delete a message template",
+        "description": "Permanently deletes a message template from the workspace.\nRequires `templates:write` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Template identifier (`tpl_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteTemplateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/broadcasts": {
+      "post": {
+        "operationId": "createBroadcast",
+        "tags": [
+          "Broadcasts"
+        ],
+        "summary": "Create and execute a broadcast or schedule a campaign",
+        "description": "Dispatches a multi-target campaign to up to 1,000 unique recipients across direct phone numbers, groups, or channels.\nIf `scheduled_at` or `send_at` is provided, schedules the broadcast for future execution (minimum 60s in the future).\nAtomically reserves quota (1 unit per unique recipient) with automatic refund on failure or cancellation.\nRequires `broadcasts:write` scope. Group broadcasts additionally require `groups:write`; channel broadcasts additionally require `channels:write`.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Broadcast configuration including target account, recipient list, message type, and optional schedule timestamp",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBroadcastRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Broadcast created and queued or scheduled for dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504GatewayTimeout"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listBroadcasts",
+        "tags": [
+          "Broadcasts"
+        ],
+        "summary": "List broadcast campaigns",
+        "description": "Lists broadcast campaigns in the workspace with optional account and status filters and pagination.\nRequires `broadcasts:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter broadcasts by WhatsApp account UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter broadcasts by status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "running",
+                "completed",
+                "failed",
+                "cancelled",
+                "scheduled",
+                "dispatch_uncertain"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetQuery"
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of broadcast campaigns returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastListResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/broadcasts/{id}": {
+      "get": {
+        "operationId": "getBroadcast",
+        "tags": [
+          "Broadcasts"
+        ],
+        "summary": "Get broadcast details",
+        "description": "Retrieves metadata, execution progress, delivery counts, and status of a broadcast campaign.\nRequires `broadcasts:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Broadcast identifier (`bc_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Broadcast campaign details returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/broadcasts/{id}/recipients": {
+      "get": {
+        "operationId": "listBroadcastRecipients",
+        "tags": [
+          "Broadcasts"
+        ],
+        "summary": "List broadcast recipients",
+        "description": "Returns the itemized recipient dispatch log for a broadcast campaign including individual message delivery states.\nRequires `broadcasts:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Broadcast identifier (`bc_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetQuery"
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Itemized list of broadcast recipients and dispatch status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastRecipientsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/broadcasts/{id}/cancel": {
+      "post": {
+        "operationId": "cancelBroadcast",
+        "tags": [
+          "Broadcasts"
+        ],
+        "summary": "Cancel an in-flight or scheduled broadcast",
+        "description": "Halts delivery of an active broadcast and automatically refunds unused reserved message quota for unattempted recipients.\nReturns 409 Conflict if the broadcast is already in a terminal state (completed, failed, cancelled).\nRequires `broadcasts:write` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Broadcast identifier (`bc_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Broadcast cancelled and unattempted quota refunded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelBroadcastResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/schedules": {
+      "get": {
+        "operationId": "listSchedules",
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "List scheduled broadcasts",
+        "description": "Retrieves all pending scheduled broadcasts (`status: scheduled`) for the workspace.\nRequires `broadcasts:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter scheduled broadcasts by WhatsApp account UUID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetQuery"
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of pending scheduled broadcasts returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleListResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    },
+    "/api/v1/schedules/{id}": {
+      "get": {
+        "operationId": "getSchedule",
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "Get scheduled broadcast details",
+        "description": "Retrieves details for a specific scheduled broadcast. Returns 404 once executed or cancelled.\nRequires `broadcasts:read` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Scheduled broadcast identifier (`bc_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled broadcast details returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleDetailsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSchedule",
+        "tags": [
+          "Schedules"
+        ],
+        "summary": "Cancel and delete a scheduled broadcast",
+        "description": "Cancels a scheduled broadcast prior to execution and returns a 100% quota refund of all reserved message units.\nRequires `broadcasts:write` scope.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Scheduled broadcast identifier (`bc_...`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/XRequestIdHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled broadcast cancelled and 100% quota refunded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelScheduleResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500Internal"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "wrp_live_<64-hex>",
+        "description": "Wareply Developer API Key Bearer Authentication.\nProvide your API key in the `Authorization` header: `Authorization: Bearer wrp_live_...`.\nEach request automatically resolves the tenant workspace and authorized account restrictions."
+      }
+    },
+    "parameters": {
+      "XRequestIdHeader": {
+        "name": "X-Request-ID",
+        "in": "header",
+        "required": false,
+        "description": "Optional client-supplied correlation request ID (1 to 128 characters)",
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+        }
+      },
+      "IdempotencyKeyHeader": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "Unique idempotency key to guarantee at-most-once execution across a 24-hour window (1 to 255 characters)",
+        "schema": {
+          "type": "string",
+          "maxLength": 255
+        }
+      },
+      "LimitQuery": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum number of records to return (1-100, default 50)",
+        "schema": {
+          "type": "integer",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "OffsetQuery": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "description": "Number of records to skip for pagination (default 0)",
+        "schema": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0
+        }
+      }
+    },
+    "headers": {
+      "XRequestId": {
+        "description": "Unique correlation request ID echoed back by the server",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "XRateLimitLimit": {
+        "description": "Permitted request limit per 60-second window (60 requests/minute per API key, global across Developer API routes)",
+        "schema": {
+          "type": "string",
+          "example": "60"
+        }
+      },
+      "XRateLimitRemaining": {
+        "description": "Remaining allowed requests in the current window",
+        "schema": {
+          "type": "string",
+          "example": "59"
+        }
+      },
+      "XRateLimitReset": {
+        "description": "Unix epoch timestamp when the current rate limit window resets",
+        "schema": {
+          "type": "string",
+          "example": "1789291260"
+        }
+      },
+      "RetryAfter": {
+        "description": "Seconds to wait before retrying after receiving a 429 response",
+        "schema": {
+          "type": "string",
+          "example": "14"
+        }
+      },
+      "IdempotentReplayed": {
+        "description": "Present and true if this response was replayed from a previous cached execution",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "Error400BadRequest": {
+        "description": "Bad Request \u2014 Malformed payload, invalid recipient format, or missing required parameter",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Error401Unauthorized": {
+        "description": "Unauthorized \u2014 Missing, invalid, expired, or revoked API key",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Error403Forbidden": {
+        "description": "Forbidden \u2014 Insufficient scope, restricted account access, suspended workspace, or commercial plan upgrade required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Error404NotFound": {
+        "description": "Not Found \u2014 Requested resource, account, message, or template not found in workspace",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Error409Conflict": {
+        "description": "Conflict \u2014 Concurrent in-flight idempotency request or resource in non-modifiable state",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Error422Unprocessable": {
+        "description": "Unprocessable Entity \u2014 Idempotency key reused with mismatched request payload",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Error429RateLimited": {
+        "description": "Too Many Requests \u2014 Rate limit exceeded (60 requests/minute per API key across Developer API routes)",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          },
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/XRateLimitLimit"
+          },
+          "X-RateLimit-Remaining": {
+            "$ref": "#/components/headers/XRateLimitRemaining"
+          },
+          "X-RateLimit-Reset": {
+            "$ref": "#/components/headers/XRateLimitReset"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Error500Internal": {
+        "description": "Internal Server Error \u2014 Unexpected error occurred (sanitized message without internal leakage)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Error502BadGateway": {
+        "description": "Bad Gateway \u2014 Definitive WhatsApp engine delivery failure",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Error504GatewayTimeout": {
+        "description": "Gateway Timeout \u2014 Ambiguous dispatch failure (dispatch_uncertain). Status must be verified via polling or retried with same idempotency key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeveloperErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "DeveloperErrorCode": {
+        "type": "string",
+        "enum": [
+          "invalid_request",
+          "unauthorized",
+          "forbidden",
+          "not_found",
+          "conflict",
+          "rate_limited",
+          "quota_exceeded",
+          "idempotency_conflict",
+          "idempotency_key_mismatch",
+          "validation_error",
+          "account_unavailable",
+          "internal_error",
+          "plan_upgrade_required",
+          "insufficient_scope",
+          "account_access_denied",
+          "invalid_recipient",
+          "message_failed",
+          "dispatch_uncertain"
+        ]
+      },
+      "DeveloperError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/DeveloperErrorCode"
+          },
+          "message": {
+            "type": "string",
+            "description": "Sanitized error explanation safe for external display (all internal paths and queries scrubbed)"
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Unique correlation request ID matching X-Request-ID header"
+          },
+          "details": {
+            "nullable": true,
+            "description": "Optional structured debugging context"
+          }
+        }
+      },
+      "DeveloperErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/DeveloperError"
+          }
+        }
+      },
+      "PaginationMetadata": {
+        "type": "object",
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Page size limit applied to the query"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Page offset applied to the query"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total matching records in workspace"
+          }
+        }
+      },
+      "AccountRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique account identifier (UUID)",
+            "example": "acc_01j4k6b49..."
+          },
+          "name": {
+            "type": "string",
+            "description": "Account display name",
+            "example": "Customer Support Line"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional account label / category",
+            "example": "Primary Support"
+          },
+          "phone_number": {
+            "type": "string",
+            "nullable": true,
+            "description": "Connected WhatsApp phone number in E.164 format",
+            "example": "+263771234567"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for phone_number",
+            "example": "+263771234567"
+          },
+          "status": {
+            "type": "string",
+            "description": "WhatsApp session connectivity status",
+            "example": "active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Account registration timestamp (ISO 8601)",
+            "example": "2026-09-01T10:00:00.000Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for created_at",
+            "example": "2026-09-01T10:00:00.000Z"
+          }
+        }
+      },
+      "AccountListResponseData": {
+        "type": "object",
+        "required": [
+          "accounts",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountRecord"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of accessible accounts matching query filters",
+            "example": 2
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum results returned in current page",
+            "example": 50
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of records skipped",
+            "example": 0
+          }
+        }
+      },
+      "AccountListResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountListResponseData"
+          }
+        }
+      },
+      "ApiKeyDetails": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "key_prefix",
+          "scopes",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique API key identifier"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-friendly label assigned to key"
+          },
+          "key_prefix": {
+            "type": "string",
+            "description": "Key prefix for identification (e.g. wrp_live_abcd)"
+          },
+          "keyPrefix": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for key_prefix"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Granted authorization scopes"
+          },
+          "account_restrictions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true,
+            "description": "Account UUIDs this key is restricted to, or null if unrestricted"
+          },
+          "accountRestrictions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for account_restrictions"
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation timestamp"
+          },
+          "createdAt": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for created_at"
+          },
+          "expires_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO 8601 expiration timestamp, or null"
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for expires_at"
+          }
+        }
+      },
+      "WorkspaceDetails": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Workspace UUID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Workspace display name"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe workspace identifier"
+          }
+        }
+      },
+      "PlanDetails": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Plan identifier"
+          },
+          "name": {
+            "type": "string",
+            "description": "Plan name"
+          }
+        }
+      },
+      "DeveloperMeData": {
+        "type": "object",
+        "required": [
+          "api_key",
+          "workspace",
+          "plan"
+        ],
+        "properties": {
+          "api_key": {
+            "$ref": "#/components/schemas/ApiKeyDetails"
+          },
+          "apiKey": {
+            "$ref": "#/components/schemas/ApiKeyDetails",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for api_key"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/WorkspaceDetails"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanDetails"
+          }
+        }
+      },
+      "DeveloperMeResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeveloperMeData"
+          }
+        }
+      },
+      "SendDirectMessageRequest": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "to"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Target WhatsApp account identifier (e.g. acc_001)",
+            "example": "acc_001"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Alias for account_id"
+          },
+          "to": {
+            "type": "string",
+            "description": "Recipient phone number in international E.164 format (e.g. +263771234567)",
+            "example": "+263771234567"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "media",
+              "image",
+              "video",
+              "document"
+            ],
+            "default": "text",
+            "description": "Message payload type"
+          },
+          "text": {
+            "type": "string",
+            "description": "Message body text (required for text messages, max 4,096 chars)",
+            "example": "Hello from Wareply"
+          },
+          "message": {
+            "type": "string",
+            "description": "Alias for text parameter"
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "Media asset identifier uploaded via Dashboard (required for media messages)"
+          },
+          "assetId": {
+            "type": "string",
+            "description": "Alias for asset_id"
+          },
+          "caption": {
+            "type": "string",
+            "description": "Optional caption text for media messages (max 1,024 chars)"
+          }
+        }
+      },
+      "DirectMessageData": {
+        "type": "object",
+        "required": [
+          "id",
+          "account_id",
+          "to",
+          "type",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable message operation ID (e.g. `msg_...`)",
+            "example": "msg_01hy8z9q2w4e"
+          },
+          "account_id": {
+            "type": "string",
+            "example": "acc_001"
+          },
+          "accountId": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for account_id",
+            "example": "acc_001"
+          },
+          "to": {
+            "type": "string",
+            "example": "+263771234567"
+          },
+          "type": {
+            "type": "string",
+            "example": "text"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "queued",
+              "processing",
+              "sent",
+              "failed",
+              "dispatch_uncertain"
+            ],
+            "example": "sent"
+          },
+          "external_message_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Confirmed WhatsApp network message ID"
+          },
+          "externalMessageId": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for external_message_id"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Failure reason if status is failed"
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-09-07T12:00:00.000Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for created_at",
+            "example": "2026-09-07T12:00:00.000Z"
+          },
+          "sent_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-07T12:00:01.000Z"
+          },
+          "sentAt": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for sent_at",
+            "example": "2026-09-07T12:00:01.000Z"
+          }
+        }
+      },
+      "SendDirectMessageResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DirectMessageData"
+          }
+        }
+      },
+      "WhatsappGroup": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "participant_count"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "WhatsApp group JID (`...@g.us`)",
+            "example": "120363041234567890@g.us"
+          },
+          "jid": {
+            "type": "string",
+            "description": "Alias for id",
+            "example": "120363041234567890@g.us"
+          },
+          "name": {
+            "type": "string",
+            "description": "Subject / display name of the group",
+            "example": "Customer Support Hub"
+          },
+          "participant_count": {
+            "type": "integer",
+            "description": "Number of participants in the group",
+            "example": 42
+          },
+          "participantCount": {
+            "type": "integer",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for participant_count",
+            "example": 42
+          }
+        }
+      },
+      "GroupListResponseData": {
+        "type": "object",
+        "required": [
+          "groups",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsappGroup"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total cached groups for the account"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        }
+      },
+      "GroupListResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GroupListResponseData"
+          }
+        }
+      },
+      "GroupRefreshItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Group JID"
+          },
+          "name": {
+            "type": "string"
+          },
+          "participantCount": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "GroupRefreshResponseData": {
+        "type": "object",
+        "required": [
+          "groups",
+          "total"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupRefreshItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "GroupRefreshResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GroupRefreshResponseData"
+          }
+        }
+      },
+      "GroupMessageData": {
+        "type": "object",
+        "required": [
+          "id",
+          "account_id",
+          "group_id",
+          "type",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Group message operation ID (`msg_grp_...`)",
+            "example": "msg_grp_01hy8z9q2w4e"
+          },
+          "account_id": {
+            "type": "string",
+            "example": "acc_001"
+          },
+          "accountId": {
+            "type": "string",
+            "example": "acc_001"
+          },
+          "group_id": {
+            "type": "string",
+            "example": "120363041234567890@g.us"
+          },
+          "groupId": {
+            "type": "string",
+            "example": "120363041234567890@g.us"
+          },
+          "group_jid": {
+            "type": "string",
+            "example": "120363041234567890@g.us"
+          },
+          "groupJid": {
+            "type": "string",
+            "example": "120363041234567890@g.us"
+          },
+          "type": {
+            "type": "string",
+            "example": "text"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "sent",
+              "failed",
+              "dispatch_uncertain"
+            ],
+            "example": "sent"
+          },
+          "external_message_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "externalMessageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-09-07T12:00:00.000Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-09-07T12:00:00.000Z"
+          },
+          "sent_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-07T12:00:01.000Z"
+          },
+          "sentAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-07T12:00:01.000Z"
+          }
+        }
+      },
+      "SendGroupMessageRequest": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "group_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Target WhatsApp account UUID"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Alias for account_id"
+          },
+          "group_id": {
+            "type": "string",
+            "description": "WhatsApp group JID (must end in `@g.us`)"
+          },
+          "groupId": {
+            "type": "string",
+            "description": "Alias for group_id"
+          },
+          "to": {
+            "type": "string",
+            "description": "Alias for group_id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "media",
+              "image",
+              "video",
+              "document"
+            ],
+            "default": "text"
+          },
+          "text": {
+            "type": "string",
+            "description": "Message text (required for text messages, max 4,096 chars)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Alias for text"
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "Media asset ID (required for media messages)"
+          },
+          "assetId": {
+            "type": "string",
+            "description": "Alias for asset_id"
+          },
+          "caption": {
+            "type": "string",
+            "description": "Optional media caption (max 1,024 chars)"
+          }
+        }
+      },
+      "SendGroupMessageByPathRequest": {
+        "type": "object",
+        "required": [
+          "account_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Target WhatsApp account UUID"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Alias for account_id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "media",
+              "image",
+              "video",
+              "document"
+            ],
+            "default": "text"
+          },
+          "text": {
+            "type": "string",
+            "description": "Message text (required for text messages, max 4,096 chars)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Alias for text"
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "Media asset ID (required for media messages)"
+          },
+          "assetId": {
+            "type": "string",
+            "description": "Alias for asset_id"
+          },
+          "caption": {
+            "type": "string",
+            "description": "Optional media caption (max 1,024 chars)"
+          }
+        }
+      },
+      "GroupMessageResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GroupMessageData"
+          }
+        }
+      },
+      "GroupDetailsResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WhatsappGroup"
+          }
+        }
+      },
+      "WhatsappChannel": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "role",
+          "admin"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "WhatsApp Channel JID (`...@newsletter`)",
+            "example": "120363045678901234@newsletter"
+          },
+          "jid": {
+            "type": "string",
+            "description": "Alias for id",
+            "example": "120363045678901234@newsletter"
+          },
+          "name": {
+            "type": "string",
+            "description": "Channel display name",
+            "example": "Company Announcements"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "description": "Role on channel (`owner`, `admin`, `subscriber`)",
+            "example": "admin"
+          },
+          "admin": {
+            "type": "boolean",
+            "description": "True if account can publish updates (owner or admin)",
+            "example": true
+          },
+          "subscriber_count": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Total number of channel subscribers"
+          },
+          "subscriberCount": {
+            "type": "integer",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for subscriber_count"
+          }
+        }
+      },
+      "ChannelListResponseData": {
+        "type": "object",
+        "required": [
+          "channels",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsappChannel"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        }
+      },
+      "ChannelListResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChannelListResponseData"
+          }
+        }
+      },
+      "ChannelRefreshItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ChannelRefreshResponseData": {
+        "type": "object",
+        "required": [
+          "channels",
+          "total"
+        ],
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelRefreshItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "ChannelRefreshResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChannelRefreshResponseData"
+          }
+        }
+      },
+      "ChannelMessageData": {
+        "type": "object",
+        "required": [
+          "id",
+          "account_id",
+          "channel_id",
+          "type",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Channel message operation ID (`msg_ch_...`)",
+            "example": "msg_ch_01hy8z9q2w4e"
+          },
+          "account_id": {
+            "type": "string",
+            "example": "acc_001"
+          },
+          "accountId": {
+            "type": "string",
+            "example": "acc_001"
+          },
+          "channel_id": {
+            "type": "string",
+            "example": "120363045678901234@newsletter"
+          },
+          "channelId": {
+            "type": "string",
+            "example": "120363045678901234@newsletter"
+          },
+          "channel_jid": {
+            "type": "string",
+            "example": "120363045678901234@newsletter"
+          },
+          "channelJid": {
+            "type": "string",
+            "example": "120363045678901234@newsletter"
+          },
+          "type": {
+            "type": "string",
+            "example": "text"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "sent",
+              "failed",
+              "dispatch_uncertain"
+            ],
+            "example": "sent"
+          },
+          "external_message_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "externalMessageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-09-07T12:00:00.000Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-09-07T12:00:00.000Z"
+          },
+          "sent_at": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-07T12:00:01.000Z"
+          },
+          "sentAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-07T12:00:01.000Z"
+          }
+        }
+      },
+      "SendChannelMessageRequest": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "channel_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Target WhatsApp account UUID"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Alias for account_id"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "WhatsApp channel JID (must end in `@newsletter`)"
+          },
+          "channelId": {
+            "type": "string",
+            "description": "Alias for channel_id"
+          },
+          "to": {
+            "type": "string",
+            "description": "Alias for channel_id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "media",
+              "image",
+              "video",
+              "document"
+            ],
+            "default": "text"
+          },
+          "text": {
+            "type": "string",
+            "description": "Message text (required for text updates, max 4,096 chars)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Alias for text"
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "Media asset ID (required for media updates)"
+          },
+          "assetId": {
+            "type": "string",
+            "description": "Alias for asset_id"
+          },
+          "caption": {
+            "type": "string",
+            "description": "Optional media caption (max 1,024 chars)"
+          }
+        }
+      },
+      "SendChannelMessageByPathRequest": {
+        "type": "object",
+        "required": [
+          "account_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Target WhatsApp account UUID"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Alias for account_id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "media",
+              "image",
+              "video",
+              "document"
+            ],
+            "default": "text"
+          },
+          "text": {
+            "type": "string",
+            "description": "Message text (required for text updates, max 4,096 chars)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Alias for text"
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "Media asset ID (required for media updates)"
+          },
+          "assetId": {
+            "type": "string",
+            "description": "Alias for asset_id"
+          },
+          "caption": {
+            "type": "string",
+            "description": "Optional media caption (max 1,024 chars)"
+          }
+        }
+      },
+      "ChannelMessageResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChannelMessageData"
+          }
+        }
+      },
+      "ChannelDetailsResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WhatsappChannel"
+          }
+        }
+      },
+      "TemplateRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "name",
+          "body",
+          "variables",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Template identifier (`tpl_...`)",
+            "example": "tpl_01h8a9b2c3d4e5f6"
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Parent workspace UUID",
+            "example": "ws_01h8a9b2c3d4e5f6"
+          },
+          "workspaceId": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for workspace_id",
+            "example": "ws_01h8a9b2c3d4e5f6"
+          },
+          "account_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Bound WhatsApp account UUID, or null if workspace-wide",
+            "example": null
+          },
+          "accountId": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for account_id",
+            "example": null
+          },
+          "api_key_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "API key UUID that created the template, or null",
+            "example": null
+          },
+          "apiKeyId": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for api_key_id",
+            "example": null
+          },
+          "name": {
+            "type": "string",
+            "description": "Template name",
+            "example": "Order Notification"
+          },
+          "body": {
+            "type": "string",
+            "description": "Template content with {{variable}} placeholders",
+            "example": "Hi {{name}}, order {{order_id}} is ready!"
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Distinct extracted variable names in order of appearance",
+            "example": [
+              "name",
+              "order_id"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation timestamp",
+            "example": "2026-09-13T03:50:00.000Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for created_at",
+            "example": "2026-09-13T03:50:00.000Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "ISO 8601 update timestamp",
+            "example": "2026-09-13T03:50:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for updated_at",
+            "example": "2026-09-13T03:50:00.000Z"
+          }
+        }
+      },
+      "CreateTemplateRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "body"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Descriptive template name (1-100 characters)",
+            "example": "Order Confirmation"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Template text containing optional {{variable_name}} placeholders (1-4096 characters)",
+            "example": "Hi {{name}}, your order {{order_id}} is ready!"
+          },
+          "account_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional WhatsApp account UUID to associate with this template. Omit for workspace-wide."
+          },
+          "category": {
+            "type": "string",
+            "description": "Optional template categorization (e.g. `marketing`, `utility`, `authentication`).\nNote: Reserved in the public API contract for categorization metadata; not currently persisted on the returned template resource."
+          }
+        }
+      },
+      "UpdateTemplateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Updated template name (1-100 characters)"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Updated template body with variable placeholders (1-4096 characters)"
+          }
+        }
+      },
+      "TemplateResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TemplateRecord"
+          }
+        }
+      },
+      "TemplateListResponseData": {
+        "type": "object",
+        "required": [
+          "templates",
+          "pagination"
+        ],
+        "properties": {
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateRecord"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMetadata"
+          }
+        }
+      },
+      "TemplateListResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TemplateListResponseData"
+          }
+        }
+      },
+      "DeleteTemplateResponseData": {
+        "type": "object",
+        "required": [
+          "success",
+          "id"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "id": {
+            "type": "string",
+            "example": "tpl_01h8a9b2c3d4e5f6"
+          }
+        }
+      },
+      "DeleteTemplateResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeleteTemplateResponseData"
+          }
+        }
+      },
+      "BroadcastRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "account_id",
+          "type",
+          "target_type",
+          "status",
+          "total_targets",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Broadcast campaign ID (`bc_...`)",
+            "example": "bc_01hy8z9q2w4e"
+          },
+          "workspace_id": {
+            "type": "string",
+            "description": "Parent workspace UUID"
+          },
+          "workspaceId": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for workspace_id"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "Bound WhatsApp account UUID",
+            "example": "acc_001"
+          },
+          "accountId": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for account_id"
+          },
+          "api_key_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "apiKeyId": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for api_key_id"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Campaign name",
+            "example": "Spring Promo 2026"
+          },
+          "type": {
+            "type": "string",
+            "description": "Message kind (`text`, `media`, `template`)",
+            "example": "text"
+          },
+          "kind": {
+            "type": "string",
+            "example": "text"
+          },
+          "target_type": {
+            "type": "string",
+            "enum": [
+              "phone",
+              "group",
+              "channel"
+            ],
+            "example": "phone"
+          },
+          "targetType": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for target_type",
+            "example": "phone"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "completed",
+              "failed",
+              "cancelled",
+              "scheduled",
+              "dispatch_uncertain"
+            ],
+            "example": "completed"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "template_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "templateId": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for template_id"
+          },
+          "variables": {
+            "type": "object",
+            "nullable": true
+          },
+          "asset_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "assetId": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for asset_id"
+          },
+          "caption": {
+            "type": "string",
+            "nullable": true
+          },
+          "delay_ms": {
+            "type": "integer",
+            "description": "Pacing delay between message dispatches in milliseconds",
+            "example": 1000
+          },
+          "delayMs": {
+            "type": "integer",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for delay_ms",
+            "example": 1000
+          },
+          "send_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO 8601 scheduled start timestamp"
+          },
+          "sendAt": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for send_at"
+          },
+          "total_targets": {
+            "type": "integer",
+            "description": "Total unique recipients in broadcast",
+            "example": 250
+          },
+          "totalTargets": {
+            "type": "integer",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for total_targets",
+            "example": 250
+          },
+          "sent_count": {
+            "type": "integer",
+            "description": "Recipients successfully dispatched",
+            "example": 248
+          },
+          "sentCount": {
+            "type": "integer",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for sent_count",
+            "example": 248
+          },
+          "failed_count": {
+            "type": "integer",
+            "description": "Recipients that encountered delivery failure",
+            "example": 2
+          },
+          "failedCount": {
+            "type": "integer",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for failed_count",
+            "example": 2
+          },
+          "skipped_count": {
+            "type": "integer",
+            "description": "Recipients skipped (e.g. invalid or unattempted on cancel)",
+            "example": 0
+          },
+          "skippedCount": {
+            "type": "integer",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for skipped_count",
+            "example": 0
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation timestamp"
+          },
+          "createdAt": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for created_at"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "ISO 8601 update timestamp"
+          },
+          "updatedAt": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for updated_at"
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for started_at"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for completed_at"
+          }
+        }
+      },
+      "CreateBroadcastRequest": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "recipients"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Target WhatsApp account UUID to dispatch from",
+            "example": "acc_001"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Alias for account_id"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional descriptive label for the broadcast",
+            "example": "Flash Sale Announcement"
+          },
+          "target_type": {
+            "type": "string",
+            "enum": [
+              "phone",
+              "group",
+              "channel"
+            ],
+            "default": "phone",
+            "description": "Recipient address format: individual phone numbers (`phone`), group JIDs (`group`), or channel JIDs (`channel`). Cannot mix types."
+          },
+          "targetType": {
+            "type": "string",
+            "description": "Alias for target_type"
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 1000,
+            "description": "Array of unique recipient phone numbers in international format, group JIDs, or channel JIDs (1 to 1,000 unique targets)",
+            "example": [
+              "+263771234567",
+              "+263779876543"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "media",
+              "template"
+            ],
+            "default": "text",
+            "description": "Message type"
+          },
+          "message": {
+            "type": "string",
+            "description": "Plain text message content (required if type is `text`, max 4,096 chars)"
+          },
+          "text": {
+            "type": "string",
+            "description": "Alias for message"
+          },
+          "template_id": {
+            "type": "string",
+            "description": "Template identifier (required if type is `template`)"
+          },
+          "templateId": {
+            "type": "string",
+            "description": "Alias for template_id"
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Dictionary of template variable values matching all {{placeholders}} in the template"
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "Media asset identifier (required if type is `media`)"
+          },
+          "assetId": {
+            "type": "string",
+            "description": "Alias for asset_id"
+          },
+          "caption": {
+            "type": "string",
+            "description": "Optional media caption text (max 4,096 chars)"
+          },
+          "delay_ms": {
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 15000,
+            "default": 1000,
+            "description": "Delivery pacing interval in milliseconds between sequential recipients (500 to 15,000 ms, default 1,000 ms)"
+          },
+          "delayMs": {
+            "type": "integer",
+            "description": "Alias for delay_ms"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "description": "Optional future ISO 8601 execution timestamp (must be >= 60 seconds in the future)",
+            "example": "2026-09-14T09:00:00.000Z"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "description": "Alias for scheduled_at"
+          },
+          "send_at": {
+            "type": "string",
+            "description": "Alias for scheduled_at"
+          },
+          "sendAt": {
+            "type": "string",
+            "description": "Alias for scheduled_at"
+          }
+        }
+      },
+      "BroadcastResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BroadcastRecord"
+          }
+        }
+      },
+      "BroadcastListResponseData": {
+        "type": "object",
+        "required": [
+          "broadcasts",
+          "pagination"
+        ],
+        "properties": {
+          "broadcasts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BroadcastRecord"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMetadata"
+          }
+        }
+      },
+      "BroadcastListResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BroadcastListResponseData"
+          }
+        }
+      },
+      "CancelBroadcastResponseData": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BroadcastRecord"
+          },
+          {
+            "type": "object",
+            "required": [
+              "refunded_units"
+            ],
+            "properties": {
+              "refunded_units": {
+                "type": "integer",
+                "description": "Number of message quota units refunded for unattempted recipients",
+                "example": 25
+              },
+              "refundedUnits": {
+                "type": "integer",
+                "deprecated": true,
+                "description": "Deprecated camelCase alias for refunded_units",
+                "example": 25
+              }
+            }
+          }
+        ]
+      },
+      "CancelBroadcastResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CancelBroadcastResponseData"
+          }
+        }
+      },
+      "BroadcastRecipientRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "broadcast_id",
+          "recipient_jid",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for workspace_id"
+          },
+          "broadcast_id": {
+            "type": "string"
+          },
+          "broadcastId": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for broadcast_id"
+          },
+          "recipient_jid": {
+            "type": "string",
+            "description": "Normalized WhatsApp recipient JID",
+            "example": "263771234567@s.whatsapp.net"
+          },
+          "recipientJid": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for recipient_jid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "sent",
+              "failed",
+              "skipped"
+            ],
+            "example": "sent"
+          },
+          "message_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Confirmed WhatsApp network message ID"
+          },
+          "messageId": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for message_id"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "sent_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "sentAt": {
+            "type": "string",
+            "nullable": true,
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for sent_at"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for created_at"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for updated_at"
+          }
+        }
+      },
+      "BroadcastRecipientsResponseData": {
+        "type": "object",
+        "required": [
+          "recipients",
+          "pagination"
+        ],
+        "properties": {
+          "recipients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BroadcastRecipientRecord"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMetadata"
+          }
+        }
+      },
+      "BroadcastRecipientsResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BroadcastRecipientsResponseData"
+          }
+        }
+      },
+      "ScheduleListResponseData": {
+        "type": "object",
+        "required": [
+          "schedules",
+          "pagination"
+        ],
+        "properties": {
+          "schedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BroadcastRecord"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMetadata"
+          }
+        }
+      },
+      "ScheduleListResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ScheduleListResponseData"
+          }
+        }
+      },
+      "ScheduleDetailsResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BroadcastRecord"
+          }
+        }
+      },
+      "CancelScheduleResponseData": {
+        "type": "object",
+        "required": [
+          "success",
+          "id",
+          "status",
+          "refunded_units"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "id": {
+            "type": "string",
+            "example": "bc_01hy8z9q2w4e"
+          },
+          "status": {
+            "type": "string",
+            "example": "cancelled"
+          },
+          "refunded_units": {
+            "type": "integer",
+            "description": "100% of reserved message quota refunded to workspace",
+            "example": 50
+          },
+          "refundedUnits": {
+            "type": "integer",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for refunded_units",
+            "example": 50
+          }
+        }
+      },
+      "CancelScheduleResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CancelScheduleResponseData"
+          }
+        }
+      },
+      "TestIdempotencyResponseData": {
+        "type": "object",
+        "required": [
+          "message_id"
+        ],
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "example": "msg-1001"
+          },
+          "messageId": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated camelCase alias for message_id",
+            "example": "msg-1001"
+          },
+          "echo": {
+            "type": "object"
+          }
+        }
+      },
+      "TestIdempotencyResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TestIdempotencyResponseData"
+          }
+        }
+      },
+      "HealthStatus": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "WhatsappStatus": {
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "initializing",
+              "qr_ready",
+              "pairing",
+              "authenticated",
+              "ready",
+              "disconnected"
+            ]
+          },
+          "qrCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "pairingCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "groupCount": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "GroupsResponse": {
+        "type": "object",
+        "required": [
+          "groups"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsappGroup"
+            }
+          }
+        }
+      },
+      "BroadcastRequest": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "groupIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "GroupSendResult": {
+        "type": "object",
+        "required": [
+          "groupId",
+          "groupName",
+          "success"
+        ],
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "messageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "acked": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "DisconnectResult": {
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateApiKeyRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "accountRestrictions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CreateApiKeyResponseData": {
+        "type": "object",
+        "required": [
+          "apiKey",
+          "secretKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "$ref": "#/components/schemas/ApiKeyDetails"
+          },
+          "secretKey": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateApiKeyResult": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CreateApiKeyResponseData"
+          }
+        }
+      },
+      "ListApiKeysResponseData": {
+        "type": "object",
+        "required": [
+          "keys"
+        ],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiKeyDetails"
+            }
+          }
+        }
+      },
+      "ListApiKeysResult": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ListApiKeysResponseData"
+          }
+        }
+      },
+      "RevokeApiKeyResponseData": {
+        "type": "object",
+        "required": [
+          "apiKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "$ref": "#/components/schemas/ApiKeyDetails"
+          }
+        }
+      },
+      "RevokeApiKeyResult": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RevokeApiKeyResponseData"
+          }
+        }
+      },
+      "RotateApiKeyResponseData": {
+        "type": "object",
+        "required": [
+          "apiKey",
+          "secretKey",
+          "oldApiKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "$ref": "#/components/schemas/ApiKeyDetails"
+          },
+          "secretKey": {
+            "type": "string"
+          },
+          "oldApiKey": {
+            "$ref": "#/components/schemas/ApiKeyDetails"
+          }
+        }
+      },
+      "RotateApiKeyResult": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RotateApiKeyResponseData"
+          }
+        }
+      }
+    }
+  }
+}

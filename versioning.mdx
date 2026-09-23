@@ -1,0 +1,71 @@
+---
+title: "API Versioning & Deprecation"
+description: "Guarantees, versioning lifecycle, and backward compatibility policies for the Wareply Developer API"
+---
+
+The Wareply Developer API follows strict versioning and backward compatibility practices to guarantee stability for production integrations.
+
+## URI Versioning
+
+All API endpoints are explicitly versioned in their URL path:
+
+```http
+https://wareply.co.zw/api/v1/...
+```
+
+The current stable API version is **`v1`**.
+
+Any future changes that introduce breaking modifications to existing endpoints, remove fields, or alter parameter requirements will be introduced under a new version namespace (for example, `/api/v2`).
+
+---
+
+## Backward Compatibility Guarantees
+
+Within the `/api/v1` lifecycle, Wareply adheres to standard non-breaking evolution rules. The following types of changes are considered non-breaking and may be introduced without incrementing the major version:
+
+- **New Endpoints**: Adding new paths or HTTP methods (such as the addition of `GET /api/v1/accounts`).
+- **New Optional Request Parameters**: Introducing optional query parameters, request headers, or body fields.
+- **New Response Fields**: Adding new fields to existing JSON response objects.
+- **Backwards-Compatible Aliases**: Providing alternate parameter names or deprecated aliases for smoother transitions (e.g. `accountId` alongside canonical `account_id`).
+- **Broadened Acceptance**: Accepting additional valid input formats or media types.
+- **Rate Limit Adjustments**: Relaxing rate limits or increasing capacity.
+
+<Tip>
+**Best Practice for Client Parsers**: Design your API client or SDK parser to ignore unknown JSON fields (per the Robustness Principle / Postel's Law). This prevents client-side deserialization failures when Wareply introduces new response properties.
+</Tip>
+
+---
+
+## Field Naming Convention & Deprecation Policy
+
+### Canonical Naming (`snake_case`)
+
+The canonical naming standard for all Wareply Developer API request parameters and response fields is **`snake_case`**:
+
+- Primary identifiers: `account_id`, `workspace_id`, `api_key_id`, `message_id`, `template_id`, `asset_id`
+- Timestamps: `created_at`, `updated_at`, `sent_at`, `scheduled_at`
+- Counters & Metrics: `total_targets`, `sent_count`, `failed_count`, `skipped_count`, `refunded_units`, `participant_count`, `subscriber_count`
+
+### Legacy `camelCase` Aliases
+
+To preserve compatibility with early integrations, the API server currently returns deprecated `camelCase` aliases (such as `createdAt`, `workspaceId`, `accountId`, `refundedUnits`) alongside the canonical `snake_case` properties.
+
+### Deprecation Policy
+
+1. **OpenAPI Flagging**: When a field, parameter, or endpoint is deprecated, it is clearly marked with `deprecated: true` in the OpenAPI specification and documented in the [Changelog](/changelog).
+2. **Backward Compatibility Retention**: Deprecated fields and aliases (such as legacy `camelCase` properties) remain active and supported throughout the `/api/v1` lifecycle to ensure that existing production integrations continue functioning without disruption.
+3. **Major Version Boundary**: Any eventual removal of deprecated properties will only occur in a separate major version namespace (e.g. `/api/v2`), accompanied by migration guides. No legacy aliases are removed within `/api/v1`.
+
+---
+
+## Breaking Change Policy
+
+A change is classified as breaking if it:
+
+- Removes or renames an existing endpoint path.
+- Removes an existing HTTP method from an endpoint.
+- Changes the type, structure, or semantics of an existing response field.
+- Introduces a new mandatory request parameter or required header.
+- Alters authentication mechanisms or token formats.
+
+Breaking changes will **never** be deployed into the `/api/v1` namespace. They will be released as a separate, parallel major version (e.g. `/api/v2`), allowing developers to migrate on their own timeline.

@@ -32,7 +32,7 @@ Queries are strictly isolated to the workspace associated with your API key. Att
 
 ```bash cURL
 curl -X GET "https://wareply.co.zw/api/v1/messages/msg_01hy8z9q2w4e1234" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer wrp_live_<YOUR_API_KEY>" \
   -H "Accept: application/json"
 ```
 
@@ -42,7 +42,7 @@ const messageId = "msg_01hy8z9q2w4e1234";
 const response = await fetch(`https://wareply.co.zw/api/v1/messages/${messageId}`, {
   method: "GET",
   headers: {
-    "Authorization": "Bearer YOUR_API_KEY",
+    "Authorization": "Bearer wrp_live_<YOUR_API_KEY>",
     "Accept": "application/json"
   }
 });
@@ -59,7 +59,7 @@ message_id = "msg_01hy8z9q2w4e1234"
 response = requests.get(
     f"https://wareply.co.zw/api/v1/messages/{message_id}",
     headers={
-        "Authorization": "Bearer YOUR_API_KEY",
+        "Authorization": "Bearer wrp_live_<YOUR_API_KEY>",
         "Accept": "application/json"
     }
 )
@@ -81,7 +81,10 @@ print(response.json())
       Stable operation identifier matching the requested `:id`.
     </ResponseField>
     <ResponseField name="account_id" type="string" required>
-      UUID of the WhatsApp account that dispatched the message.
+      **Canonical**. UUID of the WhatsApp account that dispatched the message.
+    </ResponseField>
+    <ResponseField name="accountId" type="string" deprecated>
+      **Deprecated compatibility alias** for `account_id`.
     </ResponseField>
     <ResponseField name="to" type="string" required>
       The destination phone number in normalized E.164 format.
@@ -93,13 +96,22 @@ print(response.json())
       Current operational status: `sent`, `accepted`, `queued`, `processing`, `failed`, or `dispatch_uncertain`.
     </ResponseField>
     <ResponseField name="external_message_id" type="string | null" required>
-      Confirmed WhatsApp message ID returned by WhatsApp servers upon successful transmission.
+      **Canonical**. Confirmed WhatsApp message ID returned by WhatsApp servers upon successful transmission.
+    </ResponseField>
+    <ResponseField name="externalMessageId" type="string | null" deprecated>
+      **Deprecated compatibility alias** for `external_message_id`.
     </ResponseField>
     <ResponseField name="created_at" type="string" required>
-      ISO 8601 timestamp when the send request was received.
+      **Canonical**. ISO 8601 timestamp when the send request was received.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string" deprecated>
+      **Deprecated compatibility alias** for `created_at`.
     </ResponseField>
     <ResponseField name="sent_at" type="string | null" required>
-      ISO 8601 timestamp when WhatsApp confirmed network delivery.
+      **Canonical**. ISO 8601 timestamp when WhatsApp confirmed network delivery.
+    </ResponseField>
+    <ResponseField name="sentAt" type="string | null" deprecated>
+      **Deprecated compatibility alias** for `sent_at`.
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -112,20 +124,20 @@ print(response.json())
 {
   "data": {
     "id": "msg_01hy8z9q2w4e1234",
-    "account_id": "acc_01hy8z9q2w4e",
-    "accountId": "acc_01hy8z9q2w4e",
+    "account_id": "acc_01hy8z9q2w4e1234",
     "to": "+263782092900",
     "type": "text",
     "status": "sent",
     "external_message_id": "3EB0ABCDEF1234567890",
-    "externalMessageId": "3EB0ABCDEF1234567890",
     "created_at": "2026-09-13T03:50:00.000Z",
-    "createdAt": "2026-09-13T03:50:00.000Z",
-    "sent_at": "2026-09-13T03:50:01.250Z",
-    "sentAt": "2026-09-13T03:50:01.250Z"
+    "sent_at": "2026-09-13T03:50:01.250Z"
   }
 }
 ```
+
+<Note>
+**Backwards Compatibility**: The server also returns deprecated camelCase aliases (`accountId`, `externalMessageId`, `createdAt`, `sentAt`) alongside canonical `snake_case` properties. New clients should consume canonical `snake_case`.
+</Note>
 
 ---
 

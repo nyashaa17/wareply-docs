@@ -36,7 +36,7 @@ Wareply's Developer API is therefore distinct from the Meta WhatsApp Cloud API a
 The Developer API is an interface to Wareply's existing WhatsApp infrastructure, not a parallel WhatsApp stack. Every request passes through a multi-tier security and execution pipeline:
 
 1. **Request Tracing**: Every inbound request is assigned or preserves a unique correlation ID via `X-Request-ID`.
-2. **Rate Limiting**: Sliding-window rate limiting is evaluated per API key before heavy processing.
+2. **Rate Limiting**: Fixed-window rate limiting is evaluated per API key before heavy processing.
 3. **Authentication & Isolation**: Cryptographic API key verification resolves the tenant workspace and authorized account restrictions. Workspace boundaries are strictly enforced.
 4. **Distributed Idempotency**: Mutating requests with an `Idempotency-Key` or `X-Idempotency-Key` header are deduplicated atomically across a 24-hour retention window.
 5. **Quota Reservation**: Operational message quota is atomically reserved prior to dispatch and refunded automatically if a fatal failure occurs.
@@ -61,11 +61,12 @@ The Developer API is an interface to Wareply's existing WhatsApp infrastructure,
 
 ## Supported Operations Overview
 
-The public Developer API provides 29 purpose-built endpoints:
+The public Developer API provides 30 purpose-built endpoints:
 
 | Domain | Description | Canonical Scope |
 | :--- | :--- | :--- |
 | **Identity** | Credential verification, tenant workspace resolution, and plan entitlements | Any valid API key |
+| **Accounts** | Connected WhatsApp business account discovery, phone number resolution, and status | `accounts:read` |
 | **Direct Messaging** | 1-to-1 message dispatch and operational status queries | `messages:send`, `messages:read` |
 | **Groups** | Group roster queries, cache synchronization, and group messaging | `groups:read`, `groups:write` |
 | **Channels** | Channel listing, subscriber metadata, cache refresh, and updates | `channels:read`, `channels:write` |

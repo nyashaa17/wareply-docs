@@ -1,20 +1,20 @@
 ---
 title: "Rate Limits"
-description: "Understand rate limits, sliding window enforcement, and retry strategies"
+description: "Understand rate limits, fixed window enforcement, and retry strategies"
 ---
 
 The Wareply Developer API enforces rate limits to ensure platform availability, maintain stability across multi-tenant workloads, and protect connected WhatsApp numbers from messaging pace violations.
 
 ## Default Limits
 
-Rate limiting is tracked per authenticated API key across a sliding 60-second window:
+Rate limiting is tracked per authenticated API key across a fixed 60-second window:
 
 | Parameter | Value |
 | :--- | :--- |
 | **Request Limit** | 60 requests |
 | **Window Duration** | 60 seconds |
 | **Tracking Dimension** | Per API Key (`apiKey.id`) |
-| **Algorithm** | Sliding Token-Bucket Window |
+| **Algorithm** | Fixed-Window Counter |
 
 ---
 
@@ -26,7 +26,7 @@ Every Developer API response includes RFC-standard rate limiting headers indicat
 | :--- | :--- | :--- |
 | `X-RateLimit-Limit` | The maximum number of requests allowed in the 60-second window | `60` |
 | `X-RateLimit-Remaining` | The number of remaining requests available in the current window | `58` |
-| `X-RateLimit-Reset` | Unix epoch timestamp (in seconds) when the sliding window fully replenishes | `1789291260` |
+| `X-RateLimit-Reset` | Unix epoch timestamp (in seconds) when the current 60-second window resets | `1789291260` |
 
 ### Example Header Block
 
@@ -43,7 +43,7 @@ X-RateLimit-Reset: 1789291260
 
 ## HTTP 429 Rate Limit Exceeded
 
-When an API key exceeds 60 requests within the sliding 60-second window, the API rejects subsequent requests with HTTP 429 `rate_limited`.
+When an API key exceeds 60 requests within a 60-second fixed window, the API rejects subsequent requests with HTTP 429 `rate_limited`.
 
 ### Rate Limit Response Headers
 
@@ -75,6 +75,20 @@ X-Request-ID: req_01hy8z9q2w4e1234
   }
 }
 ```
+
+---
+
+## Rate Limit vs. Monthly Message Quota
+
+It is important to distinguish between API request rate limits and monthly message dispatch quotas:
+
+| Concept | Scope | Limit Metric | Error Code | HTTP Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **API Rate Limit** | Request throughput | 60 requests per minute | `rate_limited` | `429` |
+| **Message Quota** | Monthly commercial allowance | Tier-based (e.g. Standard: 5,000 / Pro: 15,000) | `quota_exceeded` | `403` |
+
+- **Rate Limits (`429 rate_limited`)**: Enforces request pacing across Developer API routes. When throttled, wait for the fixed 60-second window to reset as indicated by the `Retry-After` header.
+- **Monthly Quota (`403 quota_exceeded`)**: Enforces the total operational messages your workspace can transmit within its billing period. When exhausted, message sends fail until quota is renewed or upgraded in the Wareply Dashboard.
 
 ---
 

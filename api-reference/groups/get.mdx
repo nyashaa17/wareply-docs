@@ -89,11 +89,15 @@ print(response.json())
     <ResponseField name="name" type="string" required>
       Group subject or title.
     </ResponseField>
-    <ResponseField name="participantCount" type="integer" required>
+    <ResponseField name="participant_count" type="integer" required>
       Current number of members in the group.
     </ResponseField>
   </Expandable>
 </ResponseField>
+
+<Note>
+**Backwards Compatibility**: The server also returns deprecated `participantCount` alongside canonical `participant_count`.
+</Note>
 
 ---
 
@@ -104,7 +108,7 @@ print(response.json())
   "data": {
     "id": "120363041234567890@g.us",
     "name": "Regional Logistics Hub",
-    "participantCount": 42
+    "participant_count": 42
   }
 }
 ```
