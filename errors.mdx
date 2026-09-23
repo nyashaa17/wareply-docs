@@ -61,7 +61,7 @@ The API maps operations to standard HTTP status codes:
 | `invalid_recipient` | `400` | Recipient phone number, group JID, or channel JID is invalid, contains non-digit characters, or has invalid length. Format phone numbers in international E.164. |
 | `unauthorized` | `401` | Missing or malformed `Authorization: Bearer wrp_live_...` header, or key is revoked/expired. Verify credentials in Wareply Dashboard Settings. |
 | `forbidden` | `403` | General authorization failure or workspace is suspended. Contact administrator or support. |
-| `plan_upgrade_required` | `403` | Developer API access (`api_access`) or Channel messaging is not included in your subscription plan. Upgrade to Standard, Pro, or Enterprise in the Dashboard. |
+| `plan_upgrade_required` | `403` | Developer API access (`api_access`) or Channel messaging is not included in your current plan (e.g., ongoing Free plan, expired trial, or inactive subscription). Active 7-Day Free Trials and paid plans (Standard, Pro, Custom) include API access. Upgrade in the Dashboard to enable access. |
 | `insufficient_scope` | `403` | The API key lacks the scope required for this endpoint or compound operation. Review granted scopes in `details` and update key in the Dashboard. |
 | `account_access_denied` | `403` | The API key has an account restriction whitelist that does not include the target `account_id`. |
 | `quota_exceeded` | `403` | The monthly broadcast messaging quota for the workspace has been exhausted. Check your plan's usage in the Dashboard. |

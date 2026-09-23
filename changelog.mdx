@@ -7,6 +7,17 @@ This page provides an authoritative record of changes, contract enhancements, sc
 
 ---
 
+## September 23, 2026 — Documentation & Entitlement Clarification
+
+This release updates developer documentation to align with Wareply's canonical commercial entitlement model:
+
+- **Free Plan vs. 7-Day Free Trial Clarification**:
+  - Explicitly documented that active 7-Day Free Trials receive full Standard-level Developer API access (`api_access: true`) without requiring an immediate paid subscription.
+  - Clarified that the ongoing Free plan includes 500 Dashboard messages/month for interactive dashboard use only, and returns HTTP 403 `plan_upgrade_required` on programmatic Developer API endpoints.
+  - Aligned documented message quotas to canonical values: Active 7-Day Trial (10,000), Standard (10,000/month), Pro (Unlimited subject to anti-abuse delivery pacing), and Custom (500,000).
+
+---
+
 ## September 19, 2026 — Developer API Contract & Discovery Hardening
 
 This release records the Developer API contract hardening, schema normalization, and account discovery additions completed on September 19, 2026 in response to external developer review feedback. All changes maintain strict backward compatibility within the `/api/v1` namespace.

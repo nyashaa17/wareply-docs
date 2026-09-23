@@ -85,10 +85,10 @@ It is important to distinguish between API request rate limits and monthly messa
 | Concept | Scope | Limit Metric | Error Code | HTTP Status |
 | :--- | :--- | :--- | :--- | :--- |
 | **API Rate Limit** | Request throughput | 60 requests per minute | `rate_limited` | `429` |
-| **Message Quota** | Monthly commercial allowance | Tier-based (e.g. Standard: 5,000 / Pro: 15,000) | `quota_exceeded` | `403` |
+| **Message Quota** | Commercial message allowance | Tier-based (e.g. Active Trial: 10,000 / Standard: 10,000 / Pro: Unlimited) | `quota_exceeded` | `403` |
 
-- **Rate Limits (`429 rate_limited`)**: Enforces request pacing across Developer API routes. When throttled, wait for the fixed 60-second window to reset as indicated by the `Retry-After` header.
-- **Monthly Quota (`403 quota_exceeded`)**: Enforces the total operational messages your workspace can transmit within its billing period. When exhausted, message sends fail until quota is renewed or upgraded in the Wareply Dashboard.
+- **Rate Limits (`429 rate_limited`)**: Enforces request throughput pacing (60 requests per minute) across Developer API routes. When throttled, wait for the fixed 60-second window to reset as indicated by the `Retry-After` header.
+- **Message Quota (`403 quota_exceeded`)**: Enforces the total operational messages your workspace can transmit within its billing/trial period. When exhausted, message sends fail until quota is renewed or upgraded in the Wareply Dashboard.
 
 ---
 

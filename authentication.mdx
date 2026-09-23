@@ -63,12 +63,14 @@ flowchart LR
 
 ## Commercial Plan Entitlement
 
-Developer API access is a commercial feature:
+Developer API access is available on active 7-Day Free Trials and paid commercial plans:
 
-- **Included Plans**: Standard, Pro, and Enterprise workspaces have full access to the Developer API.
-- **Free Tier**: Free includes 500 Dashboard messages per month. Developer API access requires Standard or higher. Workspaces on the Free plan do not include the `api_access` entitlement.
+- **Active 7-Day Free Trial**: New workspaces receive full programmatic access to the Developer API with Standard-level capabilities (`api_access` entitlement enabled) for 7 days (168 hours). No credit card is required.
+- **Paid Plans**: Workspaces on **Standard**, **Pro**, and **Custom** plans have full programmatic Developer API access.
+- **Ongoing Free Plan**: The ongoing Free plan includes 500 Dashboard messages per month for interactive web dashboard use only. It does not include programmatic Developer API access (`api_access: false`).
+- **Expired Trials & Inactive Subscriptions**: When a 7-day trial concludes or a paid subscription lapses without renewal, Developer API entitlement is disabled.
 
-If an API key is used against a workspace where Developer API access is disabled or where the subscription has lapsed, the API returns:
+If an API key is used against a workspace on the ongoing Free plan, an expired trial, or an inactive subscription, the API rejects the request with HTTP 403 `plan_upgrade_required`:
 
 ```json
 {

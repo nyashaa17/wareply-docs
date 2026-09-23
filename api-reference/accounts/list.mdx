@@ -12,7 +12,7 @@ This endpoint provides programmatic account discovery, allowing your services to
 - **Method**: `GET`
 - **Path**: `/api/v1/accounts`
 - **Required Scope**: `accounts:read`
-- **Plan Requirement**: Standard or higher (workspaces on the Free plan receive `403 plan_upgrade_required`)
+- **Plan Requirement**: Active 7-Day Free Trial, Standard, Pro, or Custom (workspaces on the ongoing Free plan or with expired trials receive `403 plan_upgrade_required`)
 - **Headers**:
   - `Authorization: Bearer wrp_live_<YOUR_API_KEY>` (required)
   - `X-Request-ID: <string>` (optional client correlation trace ID)
@@ -193,7 +193,7 @@ print(response.json())
 | :--- | :--- | :--- |
 | `401` | `unauthorized` | Missing, malformed, expired, or revoked API key. |
 | `403` | `insufficient_scope` | API key lacks the `accounts:read` scope. Add the scope in Dashboard Settings. |
-| `403` | `plan_upgrade_required` | Developer API access is not included in the Free tier. Upgrade to Standard or higher. |
+| `403` | `plan_upgrade_required` | Developer API access is not included in the ongoing Free plan or your trial has expired. Activate a trial or upgrade to Standard, Pro, or Custom in the Dashboard. |
 | `403` | `forbidden` | Workspace is suspended. |
 | `429` | `rate_limited` | Exceeded 60 requests per minute. Back off and inspect the `Retry-After` header. |
 | `500` | `internal_error` | Unexpected server failure. Quote the `request_id` when contacting support. |
