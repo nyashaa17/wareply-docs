@@ -2781,11 +2781,11 @@ components:
           type: string
           enum:
           - phone
+          - individual
           - group
           - channel
           default: phone
-          description: 'Recipient address format: individual phone numbers (`phone`), group JIDs (`group`), or channel JIDs
-            (`channel`). Cannot mix types.'
+          description: 'Recipient address format: individual phone numbers (`phone`, with `individual` supported as alias), group JIDs (`group`), or channel JIDs (`channel`). Cannot mix types.'
         targetType:
           type: string
           description: Alias for target_type
@@ -2800,6 +2800,13 @@ components:
           example:
           - '+263771234567'
           - '+263779876543'
+        targets:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 1000
+          description: Supported alias for recipients. If both are provided, they must contain identical values.
         type:
           type: string
           enum:

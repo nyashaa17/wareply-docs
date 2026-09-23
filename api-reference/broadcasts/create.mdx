@@ -28,10 +28,10 @@ Broadcast campaigns support immediate dispatch or scheduled future delivery, dyn
   The UUID of the WhatsApp account to send the broadcast from.
 </ParamField>
 
-<ParamField body="target_type" type="string" default="individual">
+<ParamField body="target_type" type="string" default="phone">
   The target audience type:
   
-  - `individual` or `phone`: Direct WhatsApp phone numbers in international E.164 format.
+  - `phone` (canonical) or `individual` (supported alias): Direct WhatsApp phone numbers in international E.164 format.
   - `group`: WhatsApp group JIDs ending in `@g.us`.
   - `channel`: WhatsApp channel JIDs ending in `@newsletter`.
   
@@ -41,8 +41,9 @@ Broadcast campaigns support immediate dispatch or scheduled future delivery, dyn
 </ParamField>
 
 <ParamField body="recipients" type="array of strings" required>
-  Array of recipient targets.
+  Array of recipient targets (`recipients` is canonical; `targets` is accepted as an alias).
   
+  - **Alias support**: You may provide either `recipients` or `targets`. If both are provided, they must contain identical values.
   - **Deduplication**: Duplicate entries are deduplicated automatically.
   - **Limit**: Maximum of **1,000 unique recipients** per broadcast campaign. Exceeding 1,000 unique recipients triggers an HTTP 400 `validation_error`.
 </ParamField>
@@ -227,7 +228,7 @@ print(response.json())
       Campaign label.
     </ResponseField>
     <ResponseField name="target_type" type="string" required>
-      Target classification (`individual`, `group`, or `channel`).
+      Target classification (canonical values: `phone`, `group`, or `channel`).
     </ResponseField>
     <ResponseField name="status" type="string" required>
       Initial status: `queued` (for immediate sends) or `scheduled` (for future dispatch).
@@ -264,7 +265,7 @@ print(response.json())
     "workspace_id": "ws_01h8a9b2c3d4e5f6",
     "account_id": "acc_01hy8z9q2w4e1234",
     "name": "Flash Sale Announcement",
-    "target_type": "individual",
+    "target_type": "phone",
     "type": "text",
     "status": "queued",
     "total_targets": 3,
